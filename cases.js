@@ -173,7 +173,7 @@ export function publicCase(item) {
   return {id,title,tag,teaser,icon,accent,brief,labels,portraits};
 }
 
-function renderExhibit([type,...values]) {
+export function renderExhibit([type,...values]) {
   if (type === 'table') return recordTable('기록 원문',values[0],values[1],'');
   if (type === 'route') return '<ol class="exhibit evidence-route">'+values[0].map(point=>'<li>'+point+'</li>').join('')+'</ol>';
   if (type === 'photos') {
@@ -189,3 +189,18 @@ function renderExhibit([type,...values]) {
     '<div><b>'+label+'</b><div class="waveform" aria-hidden="true">'+waveform+'</div></div>').join('')+
     '<figcaption>노란 봉우리 두 개는 책상을 두드린 소리</figcaption></figure>';
 }
+export const radioReconstruction = {
+  brief:'마지막 생방송에서 진행자는 끝인사를 했다. 하지만 청취자들은 진행자의 목소리로 된 사과를 들었다. 송출 로그의 일부가 손상됐다. 두 녹음의 시간축을 맞춰 지연을 재고, 송출이 갈라진 시각과 재생 소스를 복원하세요.',
+  answer:['22:00:00','8','R-17'],
+  labels:['송출이 갈라진 시각','수신 지연','재생 소스'],
+  lead:'04',
+  choices:{
+    cuts:['21:59:54','22:00:00','22:00:05'],
+    sources:[['MIC','스튜디오 마이크'],['R-17','리허설 파일 R-17'],['TEL','외부 전화']]
+  },
+  clues:{
+    '01':['스튜디오 원음','스튜디오 녹음','스튜디오 원음에는 종료 안내음 두 번이 들어간 뒤 진행자의 끝인사가 녹음됐다.','22:00',-1,['table',['기록','스튜디오 원음'],[['첫 신호','짧은 안내음'],['둘째 신호','길게 울리는 안내음'],['이후','오늘도 함께해 주셔서 감사합니다.']]]],
+    '02':['수신기 시각 교정표','송출 설비','두 기록의 시계는 같은 기준으로 보정됐다. 청취자 수신본이 얼마나 늦게 도착했는지는 안내음 두 개를 같은 위치에 맞춰 확인할 수 있다.','21:58',-1,['table',['기록','시각 기준'],[['스튜디오','원음 기록 시각'],['청취자 채널','수신기에 도착한 시각']]]],
+    '03':['손상된 전환 로그','송출 서버','마감 구간에 편성석 P-02에서 수동 전환이 한 번 일어났다. 초 단위 시각과 소스 코드가 손상됐다.','22:00',-1,['table',['항목','남아 있는 기록'],[['콘솔','P-02'],['실행','수동 전환 1회'],['소스 · 초 단위 시각','기록 손상']]]]
+  }
+};

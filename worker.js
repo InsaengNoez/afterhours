@@ -1,5 +1,5 @@
 import { phases, durations } from './case.js';
-import { cases, publicCase } from './cases.js';
+import { cases, publicCase, radioReconstruction, renderExhibit } from './cases.js';
 import assets from './assets.js';
 
 const ttl = 24 * 60 * 60 * 1000;
@@ -10,21 +10,26 @@ const respond = (body, status = 200) => Response.json(body, {
 
 function safeState(state, player) {
   const item = cases[state.caseId ?? '001'];
-  const {suspects, clues, times, answer, beats, intro, reveal, headline, conclusion} = item;
+  const {suspects, clues, times, beats, intro, reveal, headline, conclusion} = item;
+  const radio = state.radioDesk ? radioReconstruction : null;
+  const answer = radio?.answer ?? item.answer;
+  const caseVisual = item.visual;
   const visible = clues.filter((item) => item[5] < 0 || state.public.includes(item[0]) ||
     item[5] % state.players.length === player.slot || state.phase === 5 || state.solo);
   const mine = state.votes[player.id];
-  const caseVisual = item.visual;
   return {
     phase: state.phase, stages: phases, end: state.end, solo: state.solo,
-    caseInfo:publicCase(item), host: player.id === state.host, voted: Boolean(mine),
+    caseInfo:publicCase(radio ? {...item,brief:radio.brief} : item), radioDesk:radio?.choices ?? null, host: player.id === state.host, voted: Boolean(mine),
     players: state.players.map(({ name, id }) => ({name, voted:Boolean(state.votes[id])})),
-    suspects, times, clues: state.phase >= 2 ? visible.map((item) => ({
-      id:item[0], title:item[1], source:item[2], record:item[3], time:item[4], visual:caseVisual(item[0]),
-      shared: item[5] < 0 || state.public.includes(item[0]) || state.phase === 5 || state.solo
-    })) : [],
+    suspects, times, clues: state.phase >= 2 ? visible.map((item) => {
+      const [id,originalTitle,originalSource,originalRecord,time] = item;
+      const replacement = radio?.clues[id];
+      const [title,source,record] = replacement ?? [originalTitle,originalSource,originalRecord];
+      return {id,title,source,record,time,visual:replacement ? renderExhibit(replacement[5]) : caseVisual(id),
+        shared: item[5] < 0 || state.public.includes(id) || state.phase === 5 || state.solo};
+    }) : [],
     result: state.phase === 5 ? {
-      answer, reconstruction:beats, intro, reveal, headline, conclusion, submitted:mine ?? null, score: mine ? answer.filter((part, index) => mine[index] === part).length : null
+      answer, culprit:item.answer[0], lead:radio?.lead ?? item.answer[2], labels:radio?.labels ?? item.labels, reconstruction:beats, intro, reveal, headline, conclusion, submitted:mine ?? null, score: mine ? answer.filter((part, index) => mine[index] === part).length : null
     } : null
   };
 }
@@ -60,9 +65,17 @@ function apply(state, token, body) {
   } else if (body.action === 'vote') {
     if (state.phase !== 4 || state.votes[token]) throw failure('현재 답안을 제출할 수 없습니다.', 409);
     const {vote} = body;
-    if (!Array.isArray(vote) || vote.length !== 3 || !Number.isInteger(vote[0]) ||
-      !suspects[vote[0]] || !times.includes(vote[1]) ||
-      !safeState(state, player).clues.some(({id}) => id === vote[2])) throw failure('세 항목을 모두 선택해 주세요.');
+    if (!Array.isArray(vote) || vote.length !== 3) throw failure('세 항목을 모두 선택해 주세요.');
+    if (state.radioDesk) {
+      const {cuts,sources} = radioReconstruction.choices;
+      if (typeof vote[1] !== 'string' || !cuts.includes(vote[0]) ||
+          !/^(?:[0-9]|1[0-2])$/.test(vote[1]) || !sources.some(([code])=>code===vote[2])) {
+        throw failure('전환 시각, 수신 지연, 재생 소스를 확인해 주세요.');
+      }
+    } else if (!Number.isInteger(vote[0]) || !suspects[vote[0]] || !times.includes(vote[1]) ||
+        !safeState(state, player).clues.some(({id}) => id === vote[2])) {
+      throw failure('세 항목을 모두 선택해 주세요.');
+    }
     state.votes[token] = vote;
     if (state.players.every(({id}) => state.votes[id])) advance(state, Date.now());
   } else if (body.action !== 'status') {
@@ -86,7 +99,7 @@ async function api(request, env, path) {
     if (typeof caseId !== 'string' || !Object.hasOwn(cases,caseId)) throw failure('사건을 다시 선택해 주세요.');
     const now = Date.now();
     const solo = body.solo === true;
-    const state = {caseId,phase:solo ? 1 : 0, end:solo ? now + 120000 : null, solo, host:token,
+    const state = {caseId,radioDesk:caseId==='002',phase:solo ? 1 : 0, end:solo ? now + 120000 : null, solo, host:token,
       players:[{id:token, name:validName(body.name), slot:0}], public:[], votes:{}};
     await env.DB.prepare('DELETE FROM rooms WHERE created < ?').bind(now - ttl).run();
     for (let attempt = 0; attempt < 5; attempt++) {

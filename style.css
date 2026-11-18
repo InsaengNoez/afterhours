@@ -91,3 +91,15 @@ dialog{width:min(440px,calc(100% - 32px));padding:24px;background:var(--panel);b
   .hero-pause{left:14px;bottom:14px}
 }
 @media(prefers-reduced-motion:no-preference){.hero-slide:not([hidden]) .hero-content{animation:hero-in .32s ease-out both}@keyframes hero-in{from{opacity:.3;transform:translateX(8px)}to{opacity:1;transform:translateX(0)}}}
+
+/* Broadcast reconstruction */
+.radio-desk{background:linear-gradient(145deg,#112631,#101820 62%);border-color:#365565}
+.radio-desk input[type=range]{padding:0;accent-color:#95dbfc;width:100%;min-height:30px}
+.radio-desk label:has(output){grid-template-columns:1fr auto}.radio-desk label input{grid-column:1/-1}.radio-desk output{font:700 15px Consolas,monospace;color:#aee4ff}
+.signal-preview{margin:14px 0}.signal-scale{margin-left:135px;display:flex;justify-content:space-between;gap:4px;color:#a9c0cb;font:11px Consolas,monospace}
+.signal-line{display:grid;grid-template-columns:125px minmax(0,1fr);align-items:center;gap:10px;margin:6px 0}
+.signal-line strong{font-size:12px;color:#c4dce6}
+.signal-track{position:relative;overflow:hidden;isolation:isolate;height:56px;border-radius:6px;background:repeating-linear-gradient(90deg,#8dc3da17 0 1px,transparent 1px 4.1666%),linear-gradient(0deg,#0a1720 49%,#315f6c 50%,#0a1720 52%);border:1px solid #304d5b}
+.cue,.signal-speech,.signal-cut{position:absolute;left:var(--pos)}.cue{top:12px;transform:translateX(-50%);padding:6px 4px;border-radius:3px;background:#83ceb9;color:#0d2628;font:700 12px Consolas,monospace}.cue-1{background:#f0cd91}.signal-speech{top:15px;display:block;min-width:20%;padding:5px 4px;border-left:2px solid #96d9fb;background:#193541;color:#d9f1fc;font-size:11px;white-space:nowrap}.signal-cut{top:0;bottom:0;border-left:2px dashed #ecafb5;z-index:1}
+.signal-readout{margin:9px 0;color:#b9dce7}.radio-choices{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:600px){.signal-line{display:block}.signal-track{margin-top:5px}.signal-scale{margin-left:0}.radio-choices{grid-template-columns:1fr;gap:0}}

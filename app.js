@@ -67,12 +67,47 @@ function witnessCard([name,job,statement], portrait) {
 }
 
 
-function renderResult({result, clues, suspects, caseInfo}) {
-  const {answer, score, submitted, reconstruction, intro, reveal, headline:caseHeadline, conclusion} = result;
-  const [suspect,,evidence] = answer;
-  const [name,job] = suspects[suspect];
+const cutPositions = [6,12,17];
+
+function signalLine(label, cues, speech, text, cut) {
+  return '<div class="signal-line"><strong>'+label+'</strong><div class="signal-track" aria-hidden="true">'+
+    cues.map((second,index)=>'<span class="cue cue-'+index+'" style="--pos:'+second/24*100+'%">'+(index===0?'A':'B')+'</span>').join('')+
+    '<span class="signal-speech" style="--pos:'+speech/24*100+'%">'+text+'</span>'+
+    (cut === null ? '' : '<span class="signal-cut" style="--pos:'+cut/24*100+'%"></span>')+'</div></div>';
+}
+
+function signalPreview(delay, cut) {
+  return '<div class="signal-scale" aria-hidden="true"><span>21:59:48</span><span>22:00:00</span><span>22:00:12</span></div>'+
+    signalLine('스튜디오 원음',[3,8],12,'끝인사',cut)+
+    signalLine('청취자 수신본',[11-delay,16-delay],20-delay,'사과문',cut)+
+    '<p class="muted signal-readout">'+
+    (delay === 8 ? '안내음 A와 B가 모두 겹쳤습니다. 그다음 시작하는 두 문장을 비교하세요.' :
+      '청취자 수신본을 앞당겨 두 트랙의 안내음 A와 B를 각각 겹쳐 보세요.')+'</p>';
+}
+
+function radioDesk({radioDesk,phase,voted}) {
+  const delay = Number(drafts.delay ?? 0);
+  const cut = radioDesk.cuts.indexOf(drafts.cut);
+  const disabled = voted ? ' disabled' : '';
+  return '<section class="panel radio-desk"><h2>송출 재구성실</h2><p class="muted">수신본의 시간축을 움직여 안내음을 맞춘 뒤, 송출이 갈라진 시각과 재생 소스를 표시하세요.</p>'+
+    '<form id="radio-vote"><label>수신본 앞당기기 <output id="radio-delay-label" for="radio-delay">'+delay+'초</output>'+
+    '<input id="radio-delay" name="delay" type="range" min="0" max="12" value="'+delay+'"'+disabled+'></label>'+
+    '<div class="signal-preview">'+signalPreview(delay,cutPositions[cut] ?? null)+'</div>'+
+    '<div class="radio-choices"><label>송출 전환 시각<select name="cut" required'+disabled+'>'+
+    options(radioDesk.cuts.map(time=>[time,time]),'cut','갈라진 지점을 선택하세요')+'</select></label>'+
+    '<label>재생 소스<select name="source" required'+disabled+'>'+
+    options(radioDesk.sources,'source','재생 소스를 선택하세요')+'</select></label></div>'+
+    (voted ? '<p role="status">재구성을 제출했습니다. 모두 제출하거나 시간이 끝나면 해설이 열립니다.</p>' :
+      phase === 4 ? '<div class="actions"><button class="primary">재구성 제출 →</button></div>' :
+      '<p class="muted">설정은 지목 단계까지 유지됩니다.</p>')+'</form></section>';
+}
+
+
+function renderResult({result, clues, suspects, caseInfo, radioDesk}) {
+  const {answer, score, submitted, reconstruction, intro, reveal, headline:caseHeadline, conclusion, culprit, lead:leadId, labels} = result;
+  const [name,job] = suspects[culprit];
   const findClue = (id) => clues.find(clue => clue.id === id);
-  const lead = findClue(evidence);
+  const lead = findClue(leadId);
   const closing = '<div class="actions"><button class="ghost" data-action="result">결과와 도전 링크 복사</button><a class="ghost" href="/">처음으로</a></div>';
 
   if (resultScene === 0) {
@@ -86,14 +121,16 @@ function renderResult({result, clues, suspects, caseInfo}) {
       '<div class="actions"><button class="primary" data-action="reveal-next">범인 공개 <b aria-hidden="true">→</b></button></div></div></section>';
   }
   if (resultScene === 1) {
-    return '<section class="reveal-card culprit-reveal" aria-labelledby="reveal-title"><img class="culprit-art" src="/'+caseInfo.portraits[suspect]+'.webp" alt="">'+
+    return '<section class="reveal-card culprit-reveal" aria-labelledby="reveal-title"><img class="culprit-art" src="/'+caseInfo.portraits[culprit]+'.webp" alt="">'+
       '<div class="reveal-content"><p class="eyebrow">범인 공개</p><h2 id="reveal-title" tabindex="-1">'+name+'</h2>'+
       '<p class="culprit-job">'+job+'</p><p class="result-context">'+reveal+'</p>'+
       '<div class="actions"><button class="primary" data-action="reveal-next">사건의 전말 <b aria-hidden="true">→</b></button></div></div></section>';
   }
 
-  const format = [(value) => suspects[value][0], (value) => value, (value) => findClue(value)?.title || '증거 '+value];
-  const checks = caseInfo.labels.map((label,index) => {
+  const format = radioDesk
+    ? [(value)=>value, (value)=>value+'초', (value)=>radioDesk.sources.find(([code])=>code===value)?.[1] ?? value]
+    : [(value)=>suspects[value][0], (value)=>value, (value)=>findClue(value)?.title || '증거 '+value];
+  const checks = labels.map((label,index) => {
     const matched = submitted?.[index] === answer[index];
     const status = submitted ? (matched ? '적중' : '빗나감') : '미제출';
     return '<li><div><span>'+label+'</span><strong>'+format[index](answer[index])+'</strong></div>'+
@@ -108,6 +145,9 @@ function renderResult({result, clues, suspects, caseInfo}) {
     '<div class="debrief-grid"><section class="panel debrief-panel"><h2>결정적 증거</h2><h3>'+lead.title+'</h3>'+lead.visual+
       '<p class="muted">'+lead.record+'</p></section>'+
       '<section class="panel debrief-panel"><h2>내 답안 대조</h2><ul class="answer-checks">'+checks+'</ul></section></div>'+
+    (radioDesk ? '<section class="panel radio-desk">'+
+      (submitted ? '<h2>내가 맞춘 시간축</h2>'+signalPreview(Number(submitted[1]),cutPositions[radioDesk.cuts.indexOf(submitted[0])]) : '')+
+      '<h2>실제 송출 재구성</h2>'+signalPreview(Number(answer[1]),cutPositions[radioDesk.cuts.indexOf(answer[0])])+'</section>' : '')+
     '<section class="panel debrief-panel"><h2>재구성 타임라인</h2><ol class="reconstruction">'+beats+'</ol></section>'+
     '<details class="panel evidence-archive"><summary>전체 증거 다시 보기</summary><div class="evidence-grid">'+clues.map(evidenceCard).join('')+'</div></details>'+closing;
 }
@@ -139,23 +179,24 @@ function render() {
     }
     content += '<div class="section-title"><h2>용의자 진술</h2></div>'+
       '<div class="grid witness-grid">'+suspects.map((suspect,index)=>witnessCard(suspect,caseInfo.portraits[index])).join('')+'</div>';
-    if (phase === 4) {
+    if (phase >= 2 && room.radioDesk) content += radioDesk(room);
+    if (phase === 4 && !room.radioDesk) {
       content += '<section class="panel"><h2>최종 지목</h2>'+(voted ? '<p role="status">답안을 제출했습니다. 모두 제출하거나 시간이 끝나면 해설이 열립니다.</p>' :
         '<form id="vote" class="vote"><label>'+caseInfo.labels[0]+'<select required name="suspect">'+options(suspects.map(([name],i)=>[i,name]),'suspect','용의자를 선택하세요')+
         '</select></label><label>'+caseInfo.labels[1]+'<select required name="time">'+options(room.times.map(time=>[time,time]),'time','항목을 선택하세요')+
         '</select></label><label>'+caseInfo.labels[2]+'<select required name="clue">'+options(clues.map(({id,title})=>[id,'증거 '+id+' · '+title]),'clue','증거를 선택하세요')+
         '</select></label><button class="primary">답안 제출 →</button></form>')+'</section>';
-    } else {
+    } else if (phase < 4) {
       content += '<div class="actions">'+advance+'</div>';
     }
   }
   if (phase === 5) content = renderResult(room);
   const focused = document.activeElement;
-  const focusedSelect = focused?.form?.id === 'vote' ? focused.name : null;
+  const focusedField = ['vote','radio-vote'].includes(focused?.form?.id) ? [focused.form.id,focused.name] : null;
   app.innerHTML = '<section class="session case-session" data-case="'+caseInfo.id+'" style="--accent:'+caseInfo.accent+'"><div class="section-title"><p class="eyebrow"><span class="dot"></span> CASE '+caseInfo.id+' <span class="line"></span> '+(solo ? '혼자 체험' : '수사실 '+room.code)+'</p><span id="clock" class="clock" aria-label="남은 시간"></span></div><h1>'+title+'</h1>'+
     '<ol class="phases" aria-label="진행 단계">'+room.stages.map((stage,index)=>'<li '+(index===phase?'aria-current="step"':'')+'>'+stage+'</li>').join('')+'</ol>'+
     '<p class="status" role="status" hidden></p>'+content+'</section>';
-  if (focusedSelect) document.forms.vote?.elements[focusedSelect]?.focus();
+  if (focusedField) document.forms[focusedField[0]]?.elements[focusedField[1]]?.focus();
   tick();
 }
 
@@ -244,10 +285,26 @@ app.addEventListener('click', (event) => {
   if (action === 'result') copy('퇴근 후 추리실 · '+room.caseInfo.title+'\n'+
     (room.result.score === null ? '사건에 도전해 보세요.' : '3개 중 '+room.result.score+'개 적중!')+'\n'+location.origin+'/#case-'+room.caseInfo.id);
 });
+app.addEventListener('input',(event)=>{
+  const {form,name,value} = event.target;
+  if (form?.id !== 'radio-vote') return;
+  drafts[name] = value;
+  const delay = Number(form.elements.delay.value);
+  const cut = room.radioDesk.cuts.indexOf(form.elements.cut.value);
+  form.querySelector('#radio-delay-label').textContent = delay+'초';
+  form.querySelector('.signal-preview').innerHTML = signalPreview(delay,cutPositions[cut] ?? null);
+});
 app.addEventListener('change',(event)=>{
   if (event.target.form?.id === 'vote') drafts[event.target.name] = event.target.value;
 });
 app.addEventListener('submit',(event)=>{
+  if (event.target.id === 'radio-vote') {
+    event.preventDefault();
+    if (room.phase !== 4 || room.voted) return;
+    const selected = new FormData(event.target);
+    refresh({action:'vote',vote:[selected.get('cut'),selected.get('delay'),selected.get('source')]});
+    return;
+  }
   if (event.target.id !== 'vote') return;
   event.preventDefault();
   const selected = new FormData(event.target);
