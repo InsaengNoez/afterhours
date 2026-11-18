@@ -10,6 +10,28 @@ for (const file of readdirSync('.').filter(file=>file.endsWith('.webp'))) {
 const assets = Object.fromEntries(list.map(([url,type,path]) => [
   url,[type,readFileSync(path,type.startsWith('image/') ? 'base64' : 'utf8')]
 ]));
+const caseList = Object.values(cases);
+const heroSlides = caseList.map(({id,title,tag,accent,teaser},index) => {
+  const cover = id === '001' ? 'hero' : 'cover-'+id;
+  const heading = id === '001' ? '23시 17분,<br><em>정전.</em>' : title;
+  return '<section class="hero hero-slide" data-hero-slide aria-roledescription="슬라이드" aria-label="'+(index+1)+' / '+caseList.length+' · '+title+
+    '" style="--accent:'+accent+';--cover:url(/'+cover+'.webp)"'+(index ? ' hidden' : '')+'>'+
+    '<div class="hero-content"><p class="eyebrow"><span class="dot"></span> CASE '+id+' <span class="line"></span> '+tag+'</p>'+
+    '<h1>'+heading+'</h1><p class="deck">'+teaser+'</p>'+
+    '<div class="actions"><button class="primary" data-action="create" data-case="'+id+'" data-title="'+title+'">방 만들기 <b aria-hidden="true">→</b></button>'+
+    '<button class="ghost" data-action="solo" data-case="'+id+'" data-title="'+title+'">혼자 체험</button></div>'+
+    '<p class="meta"><span>약 15분</span><span>2–4인</span><span>가입 없이 입장</span><a class="catalog-jump" href="#cases">전체 사건 보기 ↓</a></p></div>'+
+    (id==='001' ? '<p class="capture"><span></span> CAM 03 &nbsp; / &nbsp; 23:17:00</p>' : '')+'</section>';
+}).join('');
+const heroNav = caseList.map(({id,title},index) => '<button type="button" class="hero-index" data-hero-index="'+index+
+  '" aria-label="사건 '+id+' · '+title+'"'+(index===0?' aria-current="true"':'')+'>'+id+'</button>').join('');
+assets['/'][1] = assets['/'][1].replace('<!-- CASE_HERO -->',
+  '<div class="case-hero" role="region" aria-label="추천 사건" aria-roledescription="슬라이드 배너">'+heroSlides+
+  '<div class="hero-nav"><button type="button" class="hero-control" data-hero-pause aria-label="자동 넘김 일시정지" title="자동 넘김 일시정지">Ⅱ</button>'+
+  '<button type="button" class="hero-control" data-hero-prev aria-label="이전 사건">‹</button>'+
+  '<div class="hero-indices" aria-label="사건 선택">'+heroNav+'</div>'+
+  '<button type="button" class="hero-control" data-hero-next aria-label="다음 사건">›</button></div>'+
+  '<span class="visually-hidden" data-hero-status aria-live="polite"></span></div>');
 const caseCards = Object.values(cases).map(({id,title,tag,teaser,icon,accent}) =>
   '<article class="catalog-card" id="case-'+id+'" style="--theme:'+accent+'">'+
   '<div class="catalog-top"><span class="case-symbol" aria-hidden="true">'+icon+'</span><span class="number">CASE '+id+'</span></div>'+

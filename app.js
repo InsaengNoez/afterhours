@@ -260,3 +260,76 @@ if (roomPattern.test(codeFromUrl || '')) {
 }
 
 
+
+function setupHero() {
+  const carousel = document.querySelector('.case-hero');
+  if (!carousel) return;
+  const slides = Array.from(carousel.querySelectorAll('[data-hero-slide]'));
+  const indicators = Array.from(carousel.querySelectorAll('[data-hero-index]'));
+  const toggle = carousel.querySelector('[data-hero-pause]');
+  const status = carousel.querySelector('[data-hero-status]');
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  let auto = !reducedMotion.matches;
+  let current = 0;
+  let timer;
+  let hovering = false;
+
+  function schedule() {
+    clearTimeout(timer);
+    if (auto && !hovering && !document.hidden && !dialog.open && carousel.isConnected) {
+      timer = setTimeout(() => {
+        if (!carousel.isConnected || dialog.open) return;
+        show(current + 1);
+      }, 8500);
+    }
+  }
+
+  function show(index, announce = false) {
+    const target = (index + slides.length) % slides.length;
+    if (target !== current) {
+      slides[current].hidden = true;
+      indicators[current].removeAttribute('aria-current');
+      slides[target].hidden = false;
+      indicators[target].setAttribute('aria-current','true');
+      current = target;
+    }
+    if (announce) status.textContent = indicators[current].getAttribute('aria-label');
+    schedule();
+  }
+
+  function setAuto(value) {
+    auto = value;
+    const label = auto ? '자동 넘김 일시정지' : '자동 넘김 시작';
+    toggle.textContent = auto ? 'Ⅱ' : '▶';
+    toggle.setAttribute('aria-label',label);
+    toggle.title = label;
+    schedule();
+  }
+
+  function select(index) {
+    setAuto(false);
+    show(index,true);
+  }
+
+  carousel.querySelector('[data-hero-prev]').addEventListener('click',()=>select(current-1));
+  carousel.querySelector('[data-hero-next]').addEventListener('click',()=>select(current+1));
+  indicators.forEach((button,index)=>button.addEventListener('click',()=>select(index)));
+  toggle.addEventListener('click',()=>setAuto(!auto));
+  carousel.addEventListener('focusin',(event)=>{
+    if (event.target !== toggle && auto) setAuto(false);
+  });
+  carousel.addEventListener('keydown',(event)=>{
+    if (!event.target.closest('.hero-nav') || !['ArrowLeft','ArrowRight'].includes(event.key)) return;
+    event.preventDefault();
+    select(current+(event.key==='ArrowRight' ? 1 : -1));
+    indicators[current].focus();
+  });
+  carousel.addEventListener('pointerenter',(event)=>{ if (event.pointerType==='mouse') { hovering=true; schedule(); } });
+  carousel.addEventListener('pointerleave',()=>{ hovering=false; schedule(); });
+  document.addEventListener('visibilitychange',schedule);
+  dialog.addEventListener('close',schedule);
+  reducedMotion.addEventListener('change',(event)=>{ if (event.matches) setAuto(false); });
+  setAuto(auto);
+}
+
+setupHero();
