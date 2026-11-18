@@ -65,3 +65,37 @@ test('solo sees all evidence and server opens the reveal after the deadline',asy
   assert.equal(final.body.phase,5);
   assert.equal(final.body.result.score,null);
 });
+
+test('all new cases remain tied to their rooms and expose their own evidence and verdict', async () => {
+  const expected = [
+    ['002','윤해원',[2,'리허설 파일','04'],'waveform'],
+    ['003','박선우',[2,'15:05','04'],'evidence-003.webp'],
+    ['004','채린',[1,'분장대 앞','04'],'evidence-004.webp'],
+    ['005','권나경',[1,'개표함 받침을 맞출 때','04'],'ballot-diagram']
+  ];
+  for (const [caseId,firstSuspect,answer,visual] of expected) {
+    const host = crypto.randomUUID();
+    const friend = crypto.randomUUID();
+    const {status,body:created} = await request(api,host,{name:'방장',caseId});
+    assert.equal(status,201);
+    assert.equal(created.caseInfo.id,caseId);
+    assert.equal(created.suspects[0][0],firstSuspect);
+    const path = api+'/'+created.code;
+    const joined = await request(path,friend,{action:'join',name:'초대',caseId:'001'});
+    assert.equal(joined.body.caseInfo.id,caseId);
+    for (let phase=1;phase<=2;phase++) await request(path,host,{action:'next'});
+    assert.equal((await request(path,friend)).body.clues.some(clue=>clue.id==='04'),false);
+    await request(path,host,{action:'share',clue:'04'});
+    const evidence = (await request(path,friend)).body.clues.find(clue=>clue.id==='04');
+    assert.ok(evidence.visual.includes(visual));
+    assert.equal(evidence.shared,true);
+    for (let phase=3;phase<=4;phase++) await request(path,host,{action:'next'});
+    assert.equal((await request(path,host,{action:'vote',vote:answer})).body.result,null);
+    const {body:finished} = await request(path,friend,{action:'vote',vote:answer});
+    assert.equal(finished.result.score,3);
+    assert.ok(finished.result.reconstruction.length>=4);
+    assert.equal(finished.clues.length,7);
+  }
+  const unknown = await request(api,crypto.randomUUID(),{name:'수사관',caseId:'__proto__'});
+  assert.equal(unknown.status,400);
+});

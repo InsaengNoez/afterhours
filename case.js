@@ -52,7 +52,7 @@ export function evidenceVisual(id) {
   }
 }
 
-function recordTable(title, columns, rows, style) {
+export function recordTable(title, columns, rows, style) {
   return '<div class="exhibit log '+style+'"><table><caption>'+title+'</caption><thead><tr>'+
     columns.map(column=>'<th scope="col">'+column+'</th>').join('')+'</tr></thead><tbody>'+
     rows.map(row=>'<tr>'+row.map((value,index)=>'<td>'+(index === 0 ? '<time>'+value+'</time>' : value)+'</td>').join('')+'</tr>').join('')+

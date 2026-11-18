@@ -1,4 +1,5 @@
-import { suspects, clues, phases, durations, times, answer, reconstruction, evidenceVisual } from './case.js';
+import { phases, durations } from './case.js';
+import { cases, publicCase } from './cases.js';
 import assets from './assets.js';
 
 const ttl = 24 * 60 * 60 * 1000;
@@ -8,19 +9,22 @@ const respond = (body, status = 200) => Response.json(body, {
 });
 
 function safeState(state, player) {
+  const item = cases[state.caseId ?? '001'];
+  const {suspects, clues, times, answer, beats, intro, reveal, headline, conclusion} = item;
   const visible = clues.filter((item) => item[5] < 0 || state.public.includes(item[0]) ||
     item[5] % state.players.length === player.slot || state.phase === 5 || state.solo);
   const mine = state.votes[player.id];
+  const caseVisual = item.visual;
   return {
     phase: state.phase, stages: phases, end: state.end, solo: state.solo,
-    host: player.id === state.host, voted: Boolean(mine),
+    caseInfo:publicCase(item), host: player.id === state.host, voted: Boolean(mine),
     players: state.players.map(({ name, id }) => ({name, voted:Boolean(state.votes[id])})),
     suspects, times, clues: state.phase >= 2 ? visible.map((item) => ({
-      id:item[0], title:item[1], source:item[2], record:item[3], time:item[4], visual:evidenceVisual(item[0]),
+      id:item[0], title:item[1], source:item[2], record:item[3], time:item[4], visual:caseVisual(item[0]),
       shared: item[5] < 0 || state.public.includes(item[0]) || state.phase === 5 || state.solo
     })) : [],
     result: state.phase === 5 ? {
-      answer, reconstruction, submitted:mine ?? null, score: mine ? answer.filter((part, index) => mine[index] === part).length : null
+      answer, reconstruction:beats, intro, reveal, headline, conclusion, submitted:mine ?? null, score: mine ? answer.filter((part, index) => mine[index] === part).length : null
     } : null
   };
 }
@@ -43,6 +47,7 @@ function apply(state, token, body) {
     return;
   }
   if (!player) throw failure('초대 링크로 다시 입장해 주세요.', 403);
+  const {clues, suspects, times} = cases[state.caseId ?? '001'];
   if (body.action === 'next') {
     if (token !== state.host || state.phase >= 4) throw failure('현재 단계를 넘길 수 없습니다.', 409);
     if (state.phase === 0 && !state.solo && state.players.length < 2) throw failure('다른 참가자가 입장하면 시작할 수 있습니다.', 409);
@@ -77,9 +82,11 @@ async function api(request, env, path) {
   const body = request.method === 'POST' ? await request.json().catch(() => null) : {action:'status'};
   if (!body || typeof body !== 'object') throw failure('잘못된 요청입니다.');
   if (path === '/api/rooms' && request.method === 'POST') {
+    const caseId = body.caseId ?? '001';
+    if (typeof caseId !== 'string' || !Object.hasOwn(cases,caseId)) throw failure('사건을 다시 선택해 주세요.');
     const now = Date.now();
     const solo = body.solo === true;
-    const state = {phase:solo ? 1 : 0, end:solo ? now + 120000 : null, solo, host:token,
+    const state = {caseId,phase:solo ? 1 : 0, end:solo ? now + 120000 : null, solo, host:token,
       players:[{id:token, name:validName(body.name), slot:0}], public:[], votes:{}};
     await env.DB.prepare('DELETE FROM rooms WHERE created < ?').bind(now - ttl).run();
     for (let attempt = 0; attempt < 5; attempt++) {
