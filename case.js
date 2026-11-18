@@ -20,3 +20,34 @@ export const durations = [0,120,300,300,60,0];
 export const answer = [0,'22:49','04'];
 export const proof = '22:45 사진에는 원본의 유약 자국이 있고, 22:51 사진에는 없다. 두 사진 사이에 진열장을 연 사람은 22:49의 서유진뿐이다. 유진은 복제품을 넣고 원본을 완충재 가방에 담아 나갔다. 정전은 그 뒤에 발생했다.';
 
+export function evidenceVisual(id) {
+  switch (id) {
+    case '01':
+      return recordTable('전시실 출입 이력', ['시각','출입자','기록'], [
+        ['22:48','서유진','입실'],['22:52','서유진','퇴실'],['23:19','한도윤','입실']
+      ],'access-log');
+    case '02':
+      return '<div class="exhibit outage"><div><span>조명 회로</span><strong>90<span>초</span></strong></div><div class="outage-track" aria-hidden="true"></div><div class="record-range"><time>23:17:00</time><time>23:18:30</time></div><p>출입·진열장 센서 정상</p></div>';
+    case '03':
+      return recordTable('진열장 센서 로그',['시각','상태'],[
+        ['22:49','열림 · 큐레이터 카드'],['22:50','닫힘']
+      ],'sensor-log');
+    case '04':
+      return '<figure class="exhibit comparison"><div class="photo-pair"><div><img src="/jar-before.webp" alt="굽에 반달 모양 유약 자국이 있는 달항아리"><time>22:45</time></div><div><img src="/jar-after.webp" alt="굽에 유약 자국이 없는 달항아리"><time>22:51</time></div></div><figcaption>달항아리 굽 확대 · 점검 사진</figcaption></figure>';
+    case '05':
+      return '<figure class="exhibit cctv"><img src="/corridor.webp" alt="복도에서 완충재 가방을 든 인물"><span class="live"><i></i> CAM 02</span><time>22:52</time></figure>';
+    case '06':
+      return '<div class="exhibit paper"><div class="paper-title">복제품 인수 기록 <span>22:30</span></div><dl><dt>점검</dt><dd>오민서</dd><dt>인수</dt><dd>서유진</dd><dt>용도</dt><dd>전시 조명 테스트</dd></dl></div>';
+    case '07':
+      return '<div class="exhibit maintenance"><ol><li><time>23:17</time><span>청소 장비 연결 · 조명 회로 과부하</span></li><li><time>23:18:30</time><span>조명 복구</span></li><li><time>23:19</time><span>진열장 육안 확인</span></li></ol></div>';
+    default:
+      return '';
+  }
+}
+
+function recordTable(title, columns, rows, style) {
+  return '<div class="exhibit log '+style+'"><table><caption>'+title+'</caption><thead><tr>'+
+    columns.map(column=>'<th scope="col">'+column+'</th>').join('')+'</tr></thead><tbody>'+
+    rows.map(row=>'<tr>'+row.map((value,index)=>'<td>'+(index === 0 ? '<time>'+value+'</time>' : value)+'</td>').join('')+'</tr>').join('')+
+    '</tbody></table></div>';
+}

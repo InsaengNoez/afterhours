@@ -49,6 +49,21 @@ function options(items, key, placeholder) {
     '<option value="'+escape(value)+'" '+(String(drafts[key]) === String(value) ? 'selected' : '')+'>'+escape(label)+'</option>').join('');
 }
 
+const portrait = ['yujin','doyun','minseo'];
+
+function evidenceCard(clue) {
+  return '<article class="card evidence-card"><div class="record-heading"><span class="number">증거 '+clue.id+'</span><span class="clue-visibility'+(clue.shared ? '' : ' private')+'">'+(clue.shared ? '공용' : '개인')+'</span></div>'+
+    '<div class="evidence-title"><h3>'+clue.title+'</h3><span>'+clue.source+'</span></div>'+clue.visual+
+    '<p class="evidence-transcript">'+clue.record+'</p>'+
+    (clue.shared ? '' : '<button class="ghost" data-action="share" data-id="'+clue.id+'">팀에 공개</button>')+'</article>';
+}
+
+function witnessCard([name,job,statement], index) {
+  return '<article class="card witness"><div class="portrait portrait-'+portrait[index]+'"><img src="/'+portrait[index]+'.webp" alt="" width="480" height="400">'+
+    '<div class="identity"><span>'+job+'</span><h3>'+name+'</h3></div></div><blockquote>'+statement+'</blockquote></article>';
+}
+
+
 function render() {
   const key = JSON.stringify(room);
   if (key === viewKey) return;
@@ -67,16 +82,15 @@ function render() {
   if (phase >= 1 && phase <= 4) {
     content += '<section class="panel"><h2>사건 브리핑</h2><p>23:17, 폐관 직전의 전시관이 90초 동안 어두워졌다. 복구 직후 진열장 안의 달항아리가 복제품이라는 사실이 드러났다. 범인과 교체 시점을 찾고, 교체 시점을 입증하는 증거 한 장을 제출하라.</p>'+participants+'</section>';
     if (phase >= 2) {
-      content += '<div class="section-title"><h2>증거 보드</h2><span>'+clues.length+'개 확인</span></div><div class="grid">'+clues.map((clue) =>
-        '<article class="card"><div class="record-heading"><span class="number">증거 '+clue.id+'</span><span class="muted">'+(clue.shared ? '공용' : '개인')+'</span></div><h3>'+clue.title+'</h3><p>'+clue.record+'</p>'+
-        (clue.shared ? '' : '<button class="ghost" data-action="share" data-id="'+clue.id+'">팀에 공개</button>')+'</article>').join('')+'</div>';
+      content += '<div class="section-title"><h2>증거 보드</h2><span>'+clues.length+'개 확인</span></div>'+
+        '<div class="evidence-grid">'+clues.map(evidenceCard).join('')+'</div>';
     }
     if (phase >= 3) {
       content += '<section class="panel"><h2>공용 사건 타임라인</h2><ol class="timeline">'+clues.filter(({shared}) => shared)
         .sort((a,b) => a.time.localeCompare(b.time)).map((clue) => '<li><time>'+clue.time+'</time>'+clue.title+'</li>').join('')+'</ol></section>';
     }
-    content += '<div class="section-title"><h2>용의자 진술</h2></div><div class="grid">'+suspects.map(([name,job,statement]) =>
-      '<article class="card"><span class="muted">'+job+'</span><h3>'+name+'</h3><p>'+statement+'</p></article>').join('')+'</div>';
+    content += '<div class="section-title"><h2>용의자 진술</h2></div>'+
+      '<div class="grid witness-grid">'+suspects.map(witnessCard).join('')+'</div>';
     if (phase === 4) {
       content += '<section class="panel"><h2>최종 지목</h2>'+(voted ? '<p role="status">답안을 제출했습니다. 모두 제출하거나 시간이 끝나면 해설이 열립니다.</p>' :
         '<form id="vote" class="vote"><label>범인<select required name="suspect">'+options(suspects.map(([name],i)=>[i,name]),'suspect','용의자를 선택하세요')+

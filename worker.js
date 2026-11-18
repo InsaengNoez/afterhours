@@ -1,4 +1,4 @@
-import { suspects, clues, phases, durations, times, answer, proof } from './case.js';
+import { suspects, clues, phases, durations, times, answer, proof, evidenceVisual } from './case.js';
 import assets from './assets.js';
 
 const ttl = 24 * 60 * 60 * 1000;
@@ -16,7 +16,7 @@ function safeState(state, player) {
     host: player.id === state.host, voted: Boolean(mine),
     players: state.players.map(({ name, id }) => ({name, voted:Boolean(state.votes[id])})),
     suspects, times, clues: state.phase >= 2 ? visible.map((item) => ({
-      id:item[0], title:item[1], source:item[2], record:item[3], time:item[4],
+      id:item[0], title:item[1], source:item[2], record:item[3], time:item[4], visual:evidenceVisual(item[0]),
       shared: item[5] < 0 || state.public.includes(item[0]) || state.phase === 5 || state.solo
     })) : [],
     result: state.phase === 5 ? {
