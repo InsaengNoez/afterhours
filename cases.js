@@ -3,11 +3,11 @@ import { clues, suspects, times, answer, reconstruction, evidenceVisual, recordT
 const expansions = [
   {
     id: "002",
-    title: "마지막 방송은 8초 늦었다",
+    title: "내가 하지 않은 사과",
     tag: "라디오 스튜디오",
     accent: "#95dbfc",
     icon: "▥",
-    teaser: "진행자가 읽지 않은 사과문이 그의 목소리로 전파를 탔다.",
+    teaser: "진행자는 끝인사를 했다. 청취자들은 그의 목소리로 사과를 들었다.",
     brief: "22:00, 지역 라디오의 마지막 생방송. 스튜디오에서 진행자는 끝인사를 했지만 청취자는 그의 목소리로 된 사과문을 들었다. 누가 송출을 바꿨는지, 어떤 소스를 틀었는지, 녹음 재생을 입증하는 단서를 찾으세요.",
     labels: ["송출을 바꾼 사람", "바뀐 송출 소스", "사전 녹음을 입증하는 증거"],
     times: ["스튜디오 마이크", "리허설 파일", "외부 전화 연결"],
@@ -75,7 +75,7 @@ const expansions = [
   },
   {
     id: "004",
-    title: "막이 내리기 전, 왕관은 두 개였다",
+    title: "커튼콜의 왕관",
     tag: "소극장 백스테이지",
     accent: "#f6b3b9",
     icon: "◇",
