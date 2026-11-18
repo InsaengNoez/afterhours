@@ -265,7 +265,6 @@ function setupHero() {
   const carousel = document.querySelector('.case-hero');
   if (!carousel) return;
   const slides = Array.from(carousel.querySelectorAll('[data-hero-slide]'));
-  const indicators = Array.from(carousel.querySelectorAll('[data-hero-index]'));
   const toggle = carousel.querySelector('[data-hero-pause]');
   const status = carousel.querySelector('[data-hero-status]');
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
@@ -280,7 +279,7 @@ function setupHero() {
       timer = setTimeout(() => {
         if (!carousel.isConnected || dialog.open) return;
         show(current + 1);
-      }, 8500);
+      }, 4000);
     }
   }
 
@@ -288,12 +287,10 @@ function setupHero() {
     const target = (index + slides.length) % slides.length;
     if (target !== current) {
       slides[current].hidden = true;
-      indicators[current].removeAttribute('aria-current');
       slides[target].hidden = false;
-      indicators[target].setAttribute('aria-current','true');
       current = target;
     }
-    if (announce) status.textContent = indicators[current].getAttribute('aria-label');
+    if (announce) status.textContent = slides[current].getAttribute('aria-label');
     schedule();
   }
 
@@ -313,7 +310,6 @@ function setupHero() {
 
   carousel.querySelector('[data-hero-prev]').addEventListener('click',()=>select(current-1));
   carousel.querySelector('[data-hero-next]').addEventListener('click',()=>select(current+1));
-  indicators.forEach((button,index)=>button.addEventListener('click',()=>select(index)));
   toggle.addEventListener('click',()=>setAuto(!auto));
   carousel.addEventListener('focusin',(event)=>{
     if (event.target !== toggle && auto) setAuto(false);
@@ -322,7 +318,6 @@ function setupHero() {
     if (!event.target.closest('.hero-nav') || !['ArrowLeft','ArrowRight'].includes(event.key)) return;
     event.preventDefault();
     select(current+(event.key==='ArrowRight' ? 1 : -1));
-    indicators[current].focus();
   });
   carousel.addEventListener('pointerenter',(event)=>{ if (event.pointerType==='mouse') { hovering=true; schedule(); } });
   carousel.addEventListener('pointerleave',()=>{ hovering=false; schedule(); });
