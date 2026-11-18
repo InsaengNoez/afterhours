@@ -1,4 +1,4 @@
-import { suspects, clues, phases, durations, times, answer, proof, evidenceVisual } from './case.js';
+import { suspects, clues, phases, durations, times, answer, reconstruction, evidenceVisual } from './case.js';
 import assets from './assets.js';
 
 const ttl = 24 * 60 * 60 * 1000;
@@ -20,7 +20,7 @@ function safeState(state, player) {
       shared: item[5] < 0 || state.public.includes(item[0]) || state.phase === 5 || state.solo
     })) : [],
     result: state.phase === 5 ? {
-      answer, proof, score: mine ? answer.filter((part, index) => mine[index] === part).length : null
+      answer, reconstruction, submitted:mine ?? null, score: mine ? answer.filter((part, index) => mine[index] === part).length : null
     } : null
   };
 }

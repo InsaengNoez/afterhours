@@ -8,6 +8,7 @@ const token = localStorage.getItem('afterhours-player') || crypto.randomUUID();
 localStorage.setItem('afterhours-player', token);
 let room, viewKey, mode, updatePending, noticeTimer;
 let drafts = {};
+let resultScene = 0;
 
 const escape = (value) => String(value).replace(/[&<>"']/g,(char) => ({
   '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
@@ -64,11 +65,56 @@ function witnessCard([name,job,statement], index) {
 }
 
 
+function renderResult({result, clues, suspects}) {
+  const {answer, score, submitted, reconstruction} = result;
+  const [suspect,time,evidence] = answer;
+  const [name,job] = suspects[suspect];
+  const findClue = (id) => clues.find(clue => clue.id === id);
+  const lead = findClue(evidence);
+  const closing = '<div class="actions"><button class="ghost" data-action="result">결과와 도전 링크 복사</button><a class="ghost" href="/">처음으로</a></div>';
+
+  if (resultScene === 0) {
+    const headlines = ['사건을 다시 들여다볼 시간','하나의 실마리를 잡았다','진실에 거의 닿았다','모든 단서가 맞아떨어졌다'];
+    const headline = score === null ? '수사 시간이 끝났다' : headlines[score];
+    return '<section class="reveal-card result-intro" aria-labelledby="reveal-title"><div class="reveal-content">'+
+      '<p class="eyebrow">내 수사 결과</p><h2 id="reveal-title" tabindex="-1">'+headline+'</h2>'+
+      (score === null ? '<p class="result-context">답안 미제출</p>' :
+        '<div class="result-score" role="img" aria-label="3개 중 '+score+'개 적중"><strong aria-hidden="true">'+score+'</strong><span aria-hidden="true">/ 3 적중</span></div>')+
+      '<p class="result-context">불이 꺼지기 전, 전시실에서는 무슨 일이 있었을까?</p>'+
+      '<div class="actions"><button class="primary" data-action="reveal-next">범인 공개 <b aria-hidden="true">→</b></button></div></div></section>';
+  }
+  if (resultScene === 1) {
+    return '<section class="reveal-card culprit-reveal" aria-labelledby="reveal-title"><img class="culprit-art" src="/'+portrait[suspect]+'.webp" alt="">'+
+      '<div class="reveal-content"><p class="eyebrow">범인 공개</p><h2 id="reveal-title" tabindex="-1">'+name+'</h2>'+
+      '<p class="culprit-job">'+job+'</p><p class="result-context">진열장이 열린 시각은 <strong>'+time+'</strong>.<br>전시실의 불이 꺼지기 28분 전이었다.</p>'+
+      '<div class="actions"><button class="primary" data-action="reveal-next">사건의 전말 <b aria-hidden="true">→</b></button></div></div></section>';
+  }
+
+  const format = [(value) => suspects[value][0], (value) => value, (value) => findClue(value)?.title || '증거 '+value];
+  const checks = ['범인','교체 시점','결정적 증거'].map((label,index) => {
+    const matched = submitted?.[index] === answer[index];
+    const status = submitted ? (matched ? '적중' : '빗나감') : '미제출';
+    return '<li><div><span>'+label+'</span><strong>'+format[index](answer[index])+'</strong></div>'+
+      '<div class="check-status'+(matched ? ' correct' : '')+'"><span>'+status+'</span>'+
+      (submitted && !matched ? '<small>내 답 '+format[index](submitted[index])+'</small>' : '')+'</div></li>';
+  }).join('');
+  const beats = reconstruction.map(([stamp,title,detail]) =>
+    '<li><time>'+stamp+'</time><div><h3>'+title+'</h3><p>'+detail+'</p></div></li>').join('');
+  return '<section class="reveal-card case-closed" aria-labelledby="reveal-title"><div class="reveal-content">'+
+    '<p class="eyebrow">사건의 전말</p><h2 id="reveal-title" tabindex="-1">달항아리는 먼저 바뀌었다.</h2>'+
+    '<p class="result-context">감정 사진 두 장과 진열장 기록을 맞춰보면, 교체 시점이 드러난다.</p></div></section>'+
+    '<div class="debrief-grid"><section class="panel debrief-panel"><h2>결정적 증거</h2><h3>'+lead.title+'</h3>'+lead.visual+
+      '<p class="muted">'+lead.record+'</p></section>'+
+      '<section class="panel debrief-panel"><h2>내 답안 대조</h2><ul class="answer-checks">'+checks+'</ul></section></div>'+
+    '<section class="panel debrief-panel"><h2>재구성 타임라인</h2><ol class="reconstruction">'+beats+'</ol></section>'+
+    '<details class="panel evidence-archive"><summary>전체 증거 다시 보기</summary><div class="evidence-grid">'+clues.map(evidenceCard).join('')+'</div></details>'+closing;
+}
+
 function render() {
-  const key = JSON.stringify(room);
+  const key = resultScene + ':' + JSON.stringify(room);
   if (key === viewKey) return;
   viewKey = key;
-  const {phase, players, clues, suspects, host, solo, voted, result} = room;
+  const {phase, players, clues, suspects, host, solo, voted} = room;
   const title = phase === 0 ? '수사팀 대기실' : '23시 17분, 정전';
   const participants = '<ul class="tags" aria-label="참가자">'+players.map((player) =>
     '<li>'+escape(player.name)+(phase >= 4 && player.voted ? ' · 제출 완료' : '')+'</li>').join('')+'</ul>';
@@ -101,12 +147,7 @@ function render() {
       content += '<div class="actions">'+advance+'</div>';
     }
   }
-  if (phase === 5) {
-    const [suspect,time,evidence] = result.answer;
-    content = '<section class="panel"><p class="eyebrow">사건 해설</p><h2>'+suspects[suspect][0]+' · '+time+' · 증거 '+evidence+'</h2><p>'+result.proof+'</p><ol class="timeline">'+
-      clues.toSorted((a,b)=>a.time.localeCompare(b.time)).map((clue)=>'<li><time>'+clue.time+'</time>'+clue.title+' — '+clue.record+'</li>').join('')+
-      '</ol></section><section class="panel"><h2>내 수사 결과</h2><p class="report">'+(result.score === null ? '미제출' : '3개 중 '+result.score+'개 적중')+'</p><div class="actions"><button class="primary" data-action="result">결과와 도전 링크 복사</button><a class="ghost" href="/">처음으로</a></div></section>';
-  }
+  if (phase === 5) content = renderResult(room);
   const focused = document.activeElement;
   const focusedSelect = focused?.form?.id === 'vote' ? focused.name : null;
   app.innerHTML = '<section class="session"><div class="section-title"><p class="eyebrow"><span class="dot"></span> CASE 001 <span class="line"></span> '+(solo ? '혼자 체험' : '수사실 '+room.code)+'</p><span id="clock" class="clock" aria-label="남은 시간"></span></div><h1>'+title+'</h1>'+
@@ -152,6 +193,7 @@ async function refresh(data) {
 function enter(state) {
   room = state;
   drafts = {};
+  resultScene = 0;
   history.replaceState(null,'','/?room='+state.code);
   if (dialog.open) dialog.close();
   render();
@@ -190,6 +232,13 @@ app.addEventListener('click', (event) => {
   if (action === 'next') refresh({action});
   if (action === 'share') refresh({action,clue:id});
   if (action === 'invite') copy(new URL('/?room='+room.code,location.origin).href);
+  if (action === 'reveal-next' && room.phase === 5 && resultScene < 2) {
+    resultScene++;
+    render();
+    const heading = document.querySelector('#reveal-title');
+    heading.focus({preventScroll:true});
+    heading.closest('.reveal-card').scrollIntoView({block:'start'});
+  }
   if (action === 'result') copy('퇴근 후 추리실 · 23시 17분, 정전\n'+
     (room.result.score === null ? '사건에 도전해 보세요.' : '3개 중 '+room.result.score+'개 적중!')+'\n'+location.origin+'/');
 });
