@@ -1,5 +1,5 @@
 import { phases, durations } from './case.js';
-import { cases, publicCase, radioReconstruction, renderExhibit, endings, inspectionNotes } from './cases.js';
+import { cases, publicCase, radioReconstruction, renderExhibit, endings, inspectionNotes, finalScenes } from './cases.js';
 import assets from './assets.js';
 
 const ttl = 24 * 60 * 60 * 1000;
@@ -32,7 +32,7 @@ function safeState(state, player) {
         shared: item[5] < 0 || state.public.includes(id) || state.phase === 5 || state.solo};
     }) : [],
     result: state.phase === 5 ? {
-      answer, culprit:item.answer[0], lead:radio?.lead ?? item.answer[2], labels:radio?.labels ?? item.labels, reconstruction:beats, intro, reveal, headline, conclusion, ending:endings[item.id], submitted:mine ?? null, score: mine ? answer.filter((part, index) => mine[index] === part).length : null
+      answer, culprit:item.answer[0], lead:radio?.lead ?? item.answer[2], labels:radio?.labels ?? item.labels, reconstruction:beats, intro, reveal, headline, conclusion, ending:endings[item.id], scene:finalScenes[item.id], submitted:mine ?? null, score: mine ? answer.filter((part, index) => mine[index] === part).length : null
     } : null
   };
 }

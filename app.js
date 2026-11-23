@@ -287,19 +287,26 @@ function radioDesk({radioDesk,phase,voted}) {
 }
 
 
-function renderEnding(ending) {
-  const {turn, turnBody, behind, behindBody, speaker, quote, after} = ending;
-  return '<section class="panel case-ending" aria-labelledby="ending-turn">'+
-    '<div class="ending-turn"><p class="eyebrow">결정적 순간</p><h2 id="ending-turn">'+escape(turn)+'</h2><p>'+escape(turnBody)+'</p></div>'+
-    '<details class="ending-file"><summary><span><span class="eyebrow">비하인드</span>'+
-    '<span class="ending-label">'+escape(behind)+'</span></span><span class="ending-plus" aria-hidden="true"></span></summary>'+
-    '<div class="ending-content"><p>'+escape(behindBody)+'</p>'+
+function renderAfterstory(ending, scene) {
+  const {behindBody, speaker, quote, after} = ending;
+  return '<details class="panel epilogue"><summary><span class="epilogue-copy"><span class="eyebrow">비하인드 · 사건 이후</span>'+
+    '<strong>'+escape(scene.afterTitle)+'</strong><span>'+escape(scene.afterHook)+'</span></span>'+
+    '<span class="epilogue-toggle"><span class="epilogue-open">비하인드 보기 ＋</span><span class="epilogue-close">접기 −</span></span></summary>'+
+    '<div class="ending-content"><h3>그 선택의 이유</h3><p>'+escape(behindBody)+'</p>'+
     '<figure class="ending-quote"><blockquote>“'+escape(quote)+'”</blockquote><figcaption>'+escape(speaker)+'</figcaption></figure>'+
-    '<div class="ending-after"><h3>그날 이후</h3><p>'+escape(after)+'</p></div></div></details></section>';
+    '<div class="ending-after"><h3>그날 이후</h3><p>'+escape(after)+'</p></div></div></details>';
+}
+
+function renderFinalScenes(scene, lead) {
+  const steps = scene.beats.map(([title,stamp,detail]) =>
+    '<li><div class="scene-stamp">'+escape(stamp)+'</div><div><h3>'+escape(title)+'</h3><p>'+escape(detail)+'</p></div></li>').join('');
+  return '<div class="reveal-sequence"><section class="panel sequence-evidence"><p class="eyebrow">결정적 증거 · '+escape(lead.source)+'</p>'+
+    '<h2>'+escape(lead.title)+'</h2>'+lead.visual+'<p class="muted">'+escape(lead.record)+'</p></section>'+
+    '<section class="panel sequence-steps"><h2>단서가 맞물린 세 장면</h2><ol>'+steps+'</ol></section></div>';
 }
 
 function renderResult({result, clues, suspects, caseInfo, radioDesk}) {
-  const {answer, score, submitted, reconstruction, intro, reveal, headline:caseHeadline, conclusion, ending, culprit, lead:leadId, labels} = result;
+  const {answer, score, submitted, reconstruction, intro, headline:caseHeadline, conclusion, ending, scene, culprit, lead:leadId, labels} = result;
   const [name,job] = suspects[culprit];
   const findClue = (id) => clues.find(clue => clue.id === id);
   const lead = findClue(leadId);
@@ -318,8 +325,16 @@ function renderResult({result, clues, suspects, caseInfo, radioDesk}) {
   if (resultScene === 1) {
     return '<section class="reveal-card culprit-reveal" aria-labelledby="reveal-title"><img class="culprit-art" src="/'+caseInfo.portraits[culprit]+'.webp" alt="">'+
       '<div class="reveal-content"><p class="eyebrow">범인 공개</p><h2 id="reveal-title" tabindex="-1">'+name+'</h2>'+
-      '<p class="culprit-job">'+job+'</p><p class="result-context">'+reveal+'</p>'+
+      '<p class="culprit-job">'+job+'</p>'+
       '<div class="actions"><button class="primary" data-action="reveal-next">사건의 전말 <b aria-hidden="true">→</b></button></div></div></section>';
+  }
+
+  if (resultScene === 2 && scene) {
+    const cover = caseInfo.id === '001' ? 'hero.webp' : 'cover-'+caseInfo.id+'.webp';
+    return '<section class="reveal-card case-closed scene-prologue" style="--scene-image:url(/'+cover+')" aria-labelledby="reveal-title"><div class="reveal-content">'+
+      '<p class="eyebrow">사건의 전말</p><h2 id="reveal-title" tabindex="-1">'+escape(scene.cold)+'</h2>'+
+      '<p class="result-context">'+escape(scene.question)+'</p>'+
+      '<div class="actions"><button class="primary" data-action="reveal-next">결정적 증거 공개 <b aria-hidden="true">→</b></button></div></div></section>';
   }
 
   const format = radioDesk
@@ -334,17 +349,15 @@ function renderResult({result, clues, suspects, caseInfo, radioDesk}) {
   }).join('');
   const beats = reconstruction.map(([stamp,title,detail]) =>
     '<li><time>'+stamp+'</time><div><h3>'+title+'</h3><p>'+detail+'</p></div></li>').join('');
-  return '<section class="reveal-card case-closed" aria-labelledby="reveal-title"><div class="reveal-content">'+
-    '<p class="eyebrow">사건의 전말</p><h2 id="reveal-title" tabindex="-1">'+caseHeadline+'</h2>'+
-    '<p class="result-context">'+conclusion+'</p></div></section>'+
-    (ending ? renderEnding(ending) : '')+
-    '<div class="debrief-grid"><section class="panel debrief-panel"><h2>결정적 증거</h2><h3>'+lead.title+'</h3>'+lead.visual+
-      '<p class="muted">'+lead.record+'</p></section>'+
-      '<section class="panel debrief-panel"><h2>내 답안 대조</h2><ul class="answer-checks">'+checks+'</ul></section></div>'+
+  return '<div class="final-reveal"><section class="reveal-card case-closed scene-payoff" aria-labelledby="reveal-title"><div class="reveal-content">'+
+    '<p class="eyebrow">사건의 전말은 이랬다</p><h2 id="reveal-title" tabindex="-1">'+escape(caseHeadline)+'</h2>'+
+    '<p class="result-context">'+escape(conclusion)+'</p></div></section>'+
+    renderFinalScenes(scene,lead)+renderAfterstory(ending,scene)+'</div>'+
+    '<section class="panel debrief-panel"><h2>내 답안 대조</h2><ul class="answer-checks">'+checks+'</ul></section>'+
     (radioDesk ? '<section class="panel radio-desk">'+
       (submitted ? '<h2>내가 맞춘 시간축</h2>'+signalPreview(Number(submitted[1]),cutPositions[radioDesk.cuts.indexOf(submitted[0])]) : '')+
       '<h2>실제 송출 재구성</h2>'+signalPreview(Number(answer[1]),cutPositions[radioDesk.cuts.indexOf(answer[0])])+'</section>' : '')+
-    '<section class="panel debrief-panel"><h2>재구성 타임라인</h2><ol class="reconstruction">'+beats+'</ol></section>'+
+    '<details class="panel evidence-archive"><summary>전체 사건 타임라인</summary><ol class="reconstruction">'+beats+'</ol></details>'+
     '<details class="panel evidence-archive"><summary>전체 증거 다시 보기</summary><div class="evidence-grid">'+clues.map(evidenceCard).join('')+'</div></details>'+closing;
 }
 
@@ -478,7 +491,7 @@ app.addEventListener('click', (event) => {
   if (action === 'inspect') openInspection(id);
   if (action === 'share') refresh({action,clue:id});
   if (action === 'invite') copy(new URL('/?room='+room.code,location.origin).href);
-  if (action === 'reveal-next' && room.phase === 5 && resultScene < 2) {
+  if (action === 'reveal-next' && room.phase === 5 && resultScene < 3) {
     resultScene++;
     render();
     const heading = document.querySelector('#reveal-title');
