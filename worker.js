@@ -1,5 +1,5 @@
 import { phases, durations } from './case.js';
-import { cases, publicCase, radioReconstruction, renderExhibit, endings, inspectionNotes, finalScenes } from './cases.js';
+import { cases, publicCase, radioReconstruction, renderExhibit, endings, inspectionNotes, finalScenes, caseDossiers } from './cases.js';
 import assets from './assets.js';
 
 const ttl = 24 * 60 * 60 * 1000;
@@ -25,6 +25,7 @@ function safeState(state, player) {
     players: state.players.map(({ name, id }) => ({name, voted:Boolean(state.votes[id])})),
     teamDrafts: state.phase === 4 && !state.solo ? state.players.flatMap(({id,name}) =>
       state.drafts?.[id] ? [{name, ...state.drafts[id], own:id===player.id}] : []) : [],
+    dossier: state.phase >= 1 ? caseDossiers[caseId] : null,
     suspects, times, clues: state.phase >= 2 ? visible.map((item) => {
       const [id,originalTitle,originalSource,originalRecord,time] = item;
       const replacement = radio?.clues[id];

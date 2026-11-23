@@ -8,6 +8,7 @@ const token = localStorage.getItem('afterhours-player') || crypto.randomUUID();
 localStorage.setItem('afterhours-player', token);
 let room, viewKey, mode, updatePending, noticeTimer;
 let drafts = {};
+let pins = new Set();
 let chosenCase = "001";
 let resultScene = 0;
 
@@ -117,6 +118,7 @@ function openInspection(id) {
       '<button class="ghost" type="button" data-inspect-part="'+part+'" aria-pressed="false">'+escape(label)+'</button>').join('')+'</div>'+
     '<p class="inspect-observation" role="status">위의 항목을 골라 증거의 세부 내용을 확인하세요.</p>'+
     '<details class="inspect-original"><summary>증거 설명 펼치기</summary><p>'+escape(clue.record)+'</p></details>'+
+    '<button class="ghost inspect-pin" type="button" data-inspect-pin aria-pressed="'+pins.has(id)+'">'+(pins.has(id)?'고정 해제':'증거 고정')+'</button>'+
     '<nav class="inspect-navigation" aria-label="다른 증거 보기"><button class="ghost" type="button" data-inspect-move="-1"'+(index===0?' disabled':'')+'>← 이전 증거</button>'+
     '<span class="muted">'+(index+1)+' / '+room.clues.length+'</span>'+
     '<button class="ghost" type="button" data-inspect-move="1"'+(index===room.clues.length-1?' disabled':'')+'>다음 증거 →</button></nav>';
@@ -188,6 +190,7 @@ evidenceInspector.addEventListener('click',event=>{
   const button = event.target.closest('button');
   if (!button) return;
   if (button.hasAttribute('data-inspect-close')) evidenceInspector.close();
+  if (button.hasAttribute('data-inspect-pin') && inspecting) updatePin(inspecting);
   if (button.hasAttribute('data-inspect-reset')) delete evidenceInspector.querySelector('.inspect-exhibit').dataset.part;
   if (button.hasAttribute('data-inspect-part')) inspectPart(Number(button.dataset.inspectPart));
   if (button.hasAttribute('data-inspect-frame')) {
@@ -220,9 +223,14 @@ function evidenceCard(clue) {
     (clue.shared ? '' : '<button type="button" class="ghost" data-action="share" data-id="'+clue.id+'">팀에 공개</button>')+'</div></article>';
 }
 
-function witnessCard([name,job,statement], portrait) {
+function witnessCard([name,job,statement], portrait, interview) {
+  const [topic, account, clueId] = interview ?? ['',statement,null];
+  const clue = room.clues.find(item=>item.id===clueId);
   return '<article class="card witness"><div class="portrait portrait-'+portrait+'"><img src="/'+portrait+'.webp" alt="" width="480" height="400">'+
-    '<div class="identity"><span>'+job+'</span><h3>'+name+'</h3></div></div><blockquote>'+statement+'</blockquote></article>';
+    '<div class="identity"><span>'+escape(job)+'</span><h3>'+escape(name)+'</h3></div></div>'+
+    (topic ? '<p class="interview-topic">'+escape(topic)+'</p>' : '')+
+    '<blockquote>'+escape(interview ? '“'+account+'”' : account)+'</blockquote>'+
+    (clue ? '<div class="interview-link"><button class="ghost" type="button" data-action="inspect" data-id="'+clue.id+'">증거 '+clue.id+'로 대조 →</button></div>' : '')+'</article>';
 }
 
 
@@ -371,6 +379,41 @@ function renderResult({result, clues, suspects, caseInfo, radioDesk}) {
     '<details class="panel evidence-archive"><summary>전체 증거 다시 보기</summary><div class="evidence-grid">'+clues.map(evidenceCard).join('')+'</div></details>'+closing;
 }
 
+function pinList() {
+  const selected = room.clues.filter(clue=>pins.has(clue.id));
+  return selected.length ? '<ul class="pin-list">'+selected.map(({id,title})=>
+    '<li><button class="pin-link" type="button" data-action="inspect" data-id="'+id+'"><span>'+id+'</span>'+escape(title)+'</button></li>').join('')+'</ul>' :
+    '<p class="muted pin-empty">증거를 열고 고정한 뒤 여기서 다시 확인하세요.</p>';
+}
+
+function updatePin(id) {
+  if (pins.has(id)) pins.delete(id);
+  else pins.add(id);
+  try { localStorage.setItem('afterhours-pins:'+room.code,JSON.stringify([...pins])); } catch {}
+  const list = document.querySelector('#case-pins');
+  if (list) list.innerHTML = pinList();
+  const button = evidenceInspector.querySelector('[data-inspect-pin]');
+  if (button) {
+    button.setAttribute('aria-pressed',String(pins.has(id)));
+    button.textContent = pins.has(id) ? '고정 해제' : '증거 고정';
+  }
+}
+
+function roomDesk(phase, radio) {
+  const links = [['case-brief','사건 파일'],['case-evidence','증거 보드'],['case-witnesses','진술 기록'],['case-timeline','시간대']];
+  if (radio && phase === 2) links.push(['case-answer','송출 재구성실']);
+  if (phase === 4) links.push(['case-answer','최종 답안']);
+  return '<aside class="desk-index"><nav aria-label="수사 기록 바로가기">'+links.map(([id,label]) =>
+    '<a href="#'+id+'">'+label+'</a>').join('')+'</nav><div class="desk-pins"><h2>고정한 증거</h2><div id="case-pins">'+pinList()+'</div></div></aside>';
+}
+
+function briefing(caseInfo, dossier, participants) {
+  return '<section class="panel case-brief" id="case-brief"><p class="eyebrow">사건 접수 · '+escape(caseInfo.tag)+'</p><h2>사건 브리핑</h2>'+
+    (dossier ? '<figure class="opening-statement"><blockquote>'+escape(dossier.line)+'</blockquote><figcaption>'+escape(dossier.witness)+'</figcaption></figure>'+
+      '<p>'+escape(dossier.setup)+'</p><div class="case-question"><strong>수사 목표</strong><p>'+escape(dossier.task)+'</p></div>' :
+      '<p>'+escape(caseInfo.brief)+'</p>')+participants+'</section>';
+}
+
 function render() {
   const key = resultScene + ':' + JSON.stringify(room);
   if (key === viewKey) return;
@@ -387,20 +430,20 @@ function render() {
       '<div class="actions"><button class="ghost" data-action="invite">초대 링크 복사</button>'+advance+'</div></section>';
   }
   if (phase >= 1 && phase <= 4) {
-    content += '<section class="panel"><h2>사건 브리핑</h2><p>'+caseInfo.brief+'</p>'+participants+'</section>';
+    content += briefing(caseInfo,room.dossier,participants);
     if (phase >= 2) {
-      content += '<div class="section-title"><h2>증거 보드</h2><span>'+clues.length+'개 확인</span></div>'+
+      content += '<div class="section-title desk-section" id="case-evidence"><h2>증거 보드</h2><span>'+clues.length+'개 확인</span></div>'+
         '<div class="evidence-grid">'+clues.map(evidenceCard).join('')+'</div>';
     }
     if (phase >= 2) {
-      content += '<section class="panel"><h2>공용 사건 타임라인</h2><ol class="timeline">'+clues.filter(({shared}) => shared)
+      content += '<section class="panel" id="case-timeline"><h2>사건 타임라인</h2><ol class="timeline">'+clues.filter(({shared}) => shared)
         .sort((a,b) => a.time.localeCompare(b.time)).map((clue) => '<li><time>'+clue.time+'</time>'+clue.title+'</li>').join('')+'</ol></section>';
     }
-    content += '<div class="section-title"><h2>용의자 진술</h2></div>'+
-      '<div class="grid witness-grid">'+suspects.map((suspect,index)=>witnessCard(suspect,caseInfo.portraits[index])).join('')+'</div>';
-    if (phase >= 2 && room.radioDesk) content += radioDesk(room);
+    content += '<div class="section-title desk-section" id="case-witnesses"><h2>용의자 진술</h2></div>'+
+      '<div class="grid witness-grid">'+suspects.map((suspect,index)=>witnessCard(suspect,caseInfo.portraits[index],room.dossier?.people[index])).join('')+'</div>';
+    if (phase >= 2 && room.radioDesk) content += '<div id="case-answer">'+radioDesk(room)+'</div>';
     if (phase === 4 && !room.radioDesk) {
-      content += '<section class="panel"><h2>최종 답안</h2>'+(voted ? '<p role="status">답안을 제출했습니다. 모두 제출하거나 시간이 끝나면 해설이 열립니다.</p>' :
+      content += '<section class="panel" id="case-answer"><h2>최종 답안</h2>'+(voted ? '<p role="status">답안을 제출했습니다. 모두 제출하거나 시간이 끝나면 해설이 열립니다.</p>' :
         '<form id="vote" class="vote"><label>'+caseInfo.labels[0]+'<select required name="suspect">'+options(suspects.map(([name],i)=>[i,name]),'suspect','용의자를 선택하세요')+
         '</select></label><label>'+caseInfo.labels[1]+'<select required name="time">'+options(room.times.map(time=>[time,time]),'time','항목을 선택하세요')+
         '</select></label><label>'+caseInfo.labels[2]+'<select required name="clue">'+options(clues.map(({id,title})=>[id,'증거 '+id+' · '+title]),'clue','증거를 선택하세요')+
@@ -410,6 +453,7 @@ function render() {
     }
   }
   if (phase === 4 && !solo) content += compareDrafts(room);
+  if (phase >= 2 && phase <= 4) content = '<div class="case-workspace">'+roomDesk(phase,room.radioDesk)+'<div class="desk-content">'+content+'</div></div>';
   if (phase === 5) content = renderResult(room);
   const focused = document.activeElement;
   const focusedField = ['vote','radio-vote'].includes(focused?.form?.id) ? [focused.form.id,focused.name] : null;
@@ -461,6 +505,8 @@ async function refresh(data) {
 function enter(state) {
   room = state;
   drafts = {};
+  pins = new Set();
+  try { for (const id of JSON.parse(localStorage.getItem('afterhours-pins:'+state.code) ?? '[]')) pins.add(id); } catch {}
   resultScene = 0;
   history.replaceState(null,'','/?room='+state.code);
   if (dialog.open) dialog.close();

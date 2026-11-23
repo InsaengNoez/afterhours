@@ -29,9 +29,9 @@ assets['/'][1] = assets['/'][1].replace('<!-- CASE_HERO -->',
   '<button type="button" class="hero-control hero-arrow hero-prev" data-hero-prev aria-label="이전 사건"></button>'+
   '<button type="button" class="hero-control hero-arrow hero-next" data-hero-next aria-label="다음 사건"></button></div>'+
   '<span class="visually-hidden" data-hero-status aria-live="polite"></span></div>');
-const caseCards = Object.values(cases).map(({id,title,tag,teaser,icon,accent}) =>
+const caseCards = Object.values(cases).map(({id,title,tag,teaser,accent}) =>
   '<article class="catalog-card" id="case-'+id+'" style="--theme:'+accent+'">'+
-  '<div class="catalog-top"><span class="case-symbol" aria-hidden="true">'+icon+'</span><span class="number">CASE '+id+'</span></div>'+
+  '<div class="catalog-photo" style="--file-cover:url(/'+(id==='001'?'hero':'cover-'+id)+'.webp)"><span class="number">사건 '+id+'</span></div>'+
   '<p class="catalog-setting">'+tag+'</p><h3>'+title+'</h3><p>'+teaser+'</p>'+
   '<div class="actions"><button class="ghost" data-action="create" data-case="'+id+'" data-title="'+title+'">방 만들기</button>'+
   '<button class="ghost" data-action="solo" data-case="'+id+'" data-title="'+title+'">혼자 체험 →</button></div></article>').join('');
