@@ -15,8 +15,8 @@ export const clues = [
 ];
 
 export const times = ['22:30','22:49','23:17'];
-export const phases = ['대기실','브리핑','조사','토론','지목','해설'];
-export const durations = [0,120,300,300,60,0];
+export const phases = ['대기실','브리핑','조사',null,'최종 답안','해설'];
+export const durations = [0,120,540,0,120,0];
 export const answer = [0,'22:49','04'];
 export const reconstruction = [
   ['22:30','복제품이 큐레이터에게 넘어갔다','복원 담당 오민서가 조명 테스트용 복제품을 점검하고 서유진에게 넘겼다.'],

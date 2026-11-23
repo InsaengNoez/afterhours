@@ -31,8 +31,13 @@ test('two investigators join, share evidence, reconnect and submit separate vote
   assert.equal((await request(path,friend,{action:'share',clue:'04'})).status,400);
   assert.equal((await request(path,host,{action:'share',clue:'04'})).status,200);
   assert.equal((await request(path,friend)).body.clues.find(({id})=>id==='04').shared,true);
-  assert.equal((await request(path,host,{action:'next'})).body.phase,3);
   assert.equal((await request(path,host,{action:'next'})).body.phase,4);
+  const shared = await request(path,host,{action:'draft',vote:[1,'22:49','04'],note:'출입 기록'});
+  assert.equal(shared.status,200);
+  assert.equal(shared.body.voted,false);
+  assert.equal((await request(path,friend)).body.teamDrafts[0].note,'출입 기록');
+  await request(path,friend,{action:'draft',vote:[0,'22:49','04']});
+  assert.equal((await request(path,host)).body.teamDrafts.length,2);
   const one = await request(path,host,{action:'vote',vote:[0,'22:49','04']});
   assert.equal(one.body.result,null);
   const two = await request(path,friend,{action:'vote',vote:[1,'22:49','04']});
@@ -48,7 +53,7 @@ test('four concurrent participants stay in one room and all can submit',async ()
   assert.ok(joins.every(({status})=>status===200));
   assert.equal((await request(path,host)).body.players.length,4);
   assert.equal((await request(path,crypto.randomUUID(),{action:'join',name:'추가'})).status,409);
-  for (let phase=1;phase<=4;phase++) assert.equal((await request(path,host,{action:'next'})).body.phase,phase);
+  for (const phase of [1,2,4]) assert.equal((await request(path,host,{action:'next'})).body.phase,phase);
   const votes = await Promise.all([host,...friends].map(token=>request(path,token,{action:'vote',vote:[0,'22:49','03']})));
   assert.ok(votes.every(({status})=>status===200));
   assert.equal((await request(path,host)).body.result.score,2);
@@ -62,6 +67,9 @@ test('solo sees all evidence and server opens the reveal after the deadline',asy
   context.after(()=>Date.now=now);
   Date.now = ()=>end+100;
   assert.equal((await request(path,token)).body.clues.length,7);
+  Date.now = ()=>end+540100;
+  assert.equal((await request(path,token)).body.phase,4);
+  assert.equal((await request(path,token,{action:'draft',vote:[0,'22:49','04']})).status,403);
   Date.now = ()=>end+661000;
   const final = await request(path,token);
   assert.equal(final.body.phase,5);
@@ -91,7 +99,7 @@ test('all new cases remain tied to their rooms and expose their own evidence and
     const evidence = (await request(path,friend)).body.clues.find(clue=>clue.id==='04');
     assert.ok(evidence.visual.includes(visual));
     assert.equal(evidence.shared,true);
-    for (let phase=3;phase<=4;phase++) await request(path,host,{action:'next'});
+    assert.equal((await request(path,host,{action:'next'})).body.phase,4);
     if (caseId === '002') {
       assert.equal((await request(path,host,{action:'vote',vote:[2,'리허설 파일','04']})).status,400);
       assert.equal((await request(path,host,{action:'vote',vote:['22:00:00','13','R-17']})).status,400);

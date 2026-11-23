@@ -222,6 +222,38 @@ function signalPreview(delay, cut) {
       '청취자 수신본을 앞당겨 두 트랙의 안내음 A와 B를 각각 겹쳐 보세요.')+'</p>';
 }
 
+function answerActions(label) {
+  const teamFields = room.solo ? '' : '<label>팀에 공유할 근거 (선택)<textarea name="note" maxlength="120" rows="2" placeholder="예: 증거 04의 시각을 확인했어요.">'+
+    escape(drafts.note ?? '')+'</textarea></label>';
+  return teamFields+'<div class="actions"><button class="primary" type="submit" value="vote">'+label+' →</button>'+
+    (room.solo ? '' : '<button class="ghost" type="submit" value="draft">초안 공유</button>')+'</div>';
+}
+
+function compareDrafts({teamDrafts,radioDesk,caseInfo,suspects}) {
+  const own = teamDrafts.some(draft=>draft.own);
+  if (teamDrafts.length < 2) {
+    return '<section class="panel team-compare"><h2>팀 의견 비교</h2><p class="muted">'+(own ?
+      '초안을 공유했습니다. 팀원이 공유하면 서로 다른 답을 볼 수 있어요.' :
+      '초안을 공유하면 팀과 의견을 비교할 수 있어요. 최종 답안은 바로 제출해도 됩니다.')+'</p></section>';
+  }
+  const labels = radioDesk ? ['송출 전환 시각','수신 지연','재생 소스'] : caseInfo.labels;
+  const format = radioDesk ?
+    [(value)=>value,(value)=>value+'초',(value)=>radioDesk.sources.find(([code])=>code===value)?.[1] ?? value] :
+    [(value)=>suspects[value][0],(value)=>value,(value)=>'증거 '+value];
+  const differences = labels.flatMap((label,index)=>{
+    if (new Set(teamDrafts.map(({vote})=>vote[index])).size < 2) return [];
+    const entries = teamDrafts.map(({name,vote,own})=>'<li><strong>'+escape(name)+(own?' (나)':'')+
+      '</strong><span>'+escape(format[index](vote[index]))+'</span></li>').join('');
+    return ['<li><h3>'+escape(label)+'</h3><ul>'+entries+'</ul></li>'];
+  });
+  const notes = teamDrafts.filter(({note})=>note).map(({name,note})=>
+    '<li><strong>'+escape(name)+'</strong><span>'+escape(note)+'</span></li>').join('');
+  return '<section class="panel team-compare"><h2>팀 의견 비교</h2>'+
+    (differences.length ? '<p class="muted">공유한 초안 중 의견이 갈린 항목입니다.</p><ul class="draft-differences">'+differences.join('')+'</ul>'+
+      (notes ? '<h3>공유한 근거</h3><ul class="draft-notes">'+notes+'</ul>' : '') :
+      '<p class="muted">공유된 초안의 의견이 같습니다. 준비되면 최종 답안을 제출하세요.</p>')+'</section>';
+}
+
 function radioDesk({radioDesk,phase,voted}) {
   const delay = Number(drafts.delay ?? 0);
   const cut = radioDesk.cuts.indexOf(drafts.cut);
@@ -235,7 +267,7 @@ function radioDesk({radioDesk,phase,voted}) {
     '<label>재생 소스<select name="source" required'+disabled+'>'+
     options(radioDesk.sources,'source','재생 소스를 선택하세요')+'</select></label></div>'+
     (voted ? '<p role="status">재구성을 제출했습니다. 모두 제출하거나 시간이 끝나면 해설이 열립니다.</p>' :
-      phase === 4 ? '<div class="actions"><button class="primary">재구성 제출 →</button></div>' :
+      phase === 4 ? answerActions('재구성 제출') :
       '<p class="muted">설정은 지목 단계까지 유지됩니다.</p>')+'</form></section>';
 }
 
@@ -309,7 +341,7 @@ function render() {
   const title = caseInfo.title;
   const participants = '<ul class="tags" aria-label="참가자">'+players.map((player) =>
     '<li>'+escape(player.name)+(phase >= 4 && player.voted ? ' · 제출 완료' : '')+'</li>').join('')+'</ul>';
-  const nextLabel = ['수사 시작','조사 시작','토론으로 이동','지목으로 이동'][phase];
+  const nextLabel = ['수사 시작','조사 시작','최종 답안으로 이동'][phase];
   const advance = host && phase < 4 ? '<button class="primary" data-action="next" '+(!phase && players.length < 2 ? 'disabled' : '')+'>'+nextLabel+' →</button>' : '';
   let content = '';
   if (phase === 0) {
@@ -322,7 +354,7 @@ function render() {
       content += '<div class="section-title"><h2>증거 보드</h2><span>'+clues.length+'개 확인</span></div>'+
         '<div class="evidence-grid">'+clues.map(evidenceCard).join('')+'</div>';
     }
-    if (phase >= 3) {
+    if (phase >= 2) {
       content += '<section class="panel"><h2>공용 사건 타임라인</h2><ol class="timeline">'+clues.filter(({shared}) => shared)
         .sort((a,b) => a.time.localeCompare(b.time)).map((clue) => '<li><time>'+clue.time+'</time>'+clue.title+'</li>').join('')+'</ol></section>';
     }
@@ -330,22 +362,27 @@ function render() {
       '<div class="grid witness-grid">'+suspects.map((suspect,index)=>witnessCard(suspect,caseInfo.portraits[index])).join('')+'</div>';
     if (phase >= 2 && room.radioDesk) content += radioDesk(room);
     if (phase === 4 && !room.radioDesk) {
-      content += '<section class="panel"><h2>최종 지목</h2>'+(voted ? '<p role="status">답안을 제출했습니다. 모두 제출하거나 시간이 끝나면 해설이 열립니다.</p>' :
+      content += '<section class="panel"><h2>최종 답안</h2>'+(voted ? '<p role="status">답안을 제출했습니다. 모두 제출하거나 시간이 끝나면 해설이 열립니다.</p>' :
         '<form id="vote" class="vote"><label>'+caseInfo.labels[0]+'<select required name="suspect">'+options(suspects.map(([name],i)=>[i,name]),'suspect','용의자를 선택하세요')+
         '</select></label><label>'+caseInfo.labels[1]+'<select required name="time">'+options(room.times.map(time=>[time,time]),'time','항목을 선택하세요')+
         '</select></label><label>'+caseInfo.labels[2]+'<select required name="clue">'+options(clues.map(({id,title})=>[id,'증거 '+id+' · '+title]),'clue','증거를 선택하세요')+
-        '</select></label><button class="primary">답안 제출 →</button></form>')+'</section>';
+        '</select></label>'+answerActions('답안 제출')+'</form>')+'</section>';
     } else if (phase < 4) {
       content += '<div class="actions">'+advance+'</div>';
     }
   }
+  if (phase === 4 && !solo) content += compareDrafts(room);
   if (phase === 5) content = renderResult(room);
   const focused = document.activeElement;
   const focusedField = ['vote','radio-vote'].includes(focused?.form?.id) ? [focused.form.id,focused.name] : null;
   app.innerHTML = '<section class="session case-session" data-case="'+caseInfo.id+'" style="--accent:'+caseInfo.accent+'"><div class="section-title"><p class="eyebrow"><span class="dot"></span> CASE '+caseInfo.id+' <span class="line"></span> '+(solo ? '혼자 체험' : '수사실 '+room.code)+'</p><span id="clock" class="clock" aria-label="남은 시간"></span></div><h1>'+title+'</h1>'+
-    '<ol class="phases" aria-label="진행 단계">'+room.stages.map((stage,index)=>'<li '+(index===phase?'aria-current="step"':'')+'>'+stage+'</li>').join('')+'</ol>'+
+    '<ol class="phases" aria-label="진행 단계">'+room.stages.map((stage,index)=>stage ? '<li '+(index===phase?'aria-current="step"':'')+'>'+stage+'</li>' : '').join('')+'</ol>'+
     '<p class="status" role="status" hidden></p>'+content+'</section>';
-  if (focusedField) document.forms[focusedField[0]]?.elements[focusedField[1]]?.focus();
+  if (focusedField) {
+    const field = document.forms[focusedField[0]]?.elements[focusedField[1]];
+    field?.focus();
+    if (field?.tagName === 'TEXTAREA') field.setSelectionRange(focused.selectionStart,focused.selectionEnd);
+  }
   tick();
 }
 
@@ -368,6 +405,7 @@ async function refresh(data) {
   try {
     room = await pending;
     render();
+    if (data?.action === 'draft') message('팀에 초안을 공유했습니다.');
     const status = app.querySelector('.status');
     if (status) status.hidden = true;
   } catch (error) {
@@ -437,6 +475,10 @@ app.addEventListener('click', (event) => {
 });
 app.addEventListener('input',(event)=>{
   const {form,name,value} = event.target;
+  if (['vote','radio-vote'].includes(form?.id) && name === 'note') {
+    drafts.note = value;
+    return;
+  }
   if (form?.id !== 'radio-vote') return;
   drafts[name] = value;
   const delay = Number(form.elements.delay.value);
@@ -448,17 +490,16 @@ app.addEventListener('change',(event)=>{
   if (event.target.form?.id === 'vote') drafts[event.target.name] = event.target.value;
 });
 app.addEventListener('submit',(event)=>{
-  if (event.target.id === 'radio-vote') {
-    event.preventDefault();
-    if (room.phase !== 4 || room.voted) return;
-    const selected = new FormData(event.target);
-    refresh({action:'vote',vote:[selected.get('cut'),selected.get('delay'),selected.get('source')]});
-    return;
-  }
-  if (event.target.id !== 'vote') return;
+  const id = event.target.id;
+  if (!['vote','radio-vote'].includes(id)) return;
   event.preventDefault();
+  if (room.phase !== 4 || room.voted) return;
   const selected = new FormData(event.target);
-  refresh({action:'vote',vote:[Number(selected.get('suspect')),selected.get('time'),selected.get('clue')]});
+  const vote = id === 'radio-vote'
+    ? [selected.get('cut'),selected.get('delay'),selected.get('source')]
+    : [Number(selected.get('suspect')),selected.get('time'),selected.get('clue')];
+  const action = event.submitter?.value === 'draft' ? 'draft' : 'vote';
+  refresh({action,vote,note:selected.get('note') ?? ''});
 });
 setInterval(()=>refresh(),1500);
 setInterval(tick,250);

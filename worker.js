@@ -22,6 +22,8 @@ function safeState(state, player) {
     phase: state.phase, stages: phases, end: state.end, solo: state.solo,
     caseInfo:publicCase(radio ? {...item,brief:radio.brief} : item), radioDesk:radio?.choices ?? null, host: player.id === state.host, voted: Boolean(mine),
     players: state.players.map(({ name, id }) => ({name, voted:Boolean(state.votes[id])})),
+    teamDrafts: state.phase === 4 && !state.solo ? state.players.flatMap(({id,name}) =>
+      state.drafts?.[id] ? [{name, ...state.drafts[id], own:id===player.id}] : []) : [],
     suspects, times, clues: state.phase >= 2 ? visible.map((item) => {
       const [id,originalTitle,originalSource,originalRecord,time] = item;
       const replacement = radio?.clues[id];
@@ -40,7 +42,7 @@ function playerFor(state, token) {
 }
 
 function advance(state, time) {
-  state.phase++;
+  state.phase += state.phase === 2 ? 2 : 1;
   state.end = durations[state.phase] ? time + durations[state.phase] * 1000 : null;
 }
 
@@ -63,7 +65,7 @@ function apply(state, token, body) {
     const clue = clues.find((item) => item[0] === body.clue && item[5] >= 0 && item[5] % state.players.length === player.slot);
     if (!clue) throw failure('보유한 개인 단서를 선택해 주세요.');
     if (!state.public.includes(clue[0])) state.public.push(clue[0]);
-  } else if (body.action === 'vote') {
+  } else if (body.action === 'vote' || body.action === 'draft') {
     if (state.phase !== 4 || state.votes[token]) throw failure('현재 답안을 제출할 수 없습니다.', 409);
     const {vote} = body;
     if (!Array.isArray(vote) || vote.length !== 3) throw failure('세 항목을 모두 선택해 주세요.');
@@ -76,6 +78,13 @@ function apply(state, token, body) {
     } else if (!Number.isInteger(vote[0]) || !suspects[vote[0]] || !times.includes(vote[1]) ||
         !safeState(state, player).clues.some(({id}) => id === vote[2])) {
       throw failure('세 항목을 모두 선택해 주세요.');
+    }
+    if (body.action === 'draft') {
+      if (state.solo) throw failure('팀 플레이에서만 초안을 공유할 수 있습니다.',403);
+      const note = body.note ?? '';
+      if (typeof note !== 'string' || note.length > 120) throw failure('근거를 120자 이내로 입력해 주세요.');
+      (state.drafts ??= {})[token] = {vote, note:note.trim()};
+      return;
     }
     state.votes[token] = vote;
     if (state.players.every(({id}) => state.votes[id])) advance(state, Date.now());
@@ -120,6 +129,7 @@ async function api(request, env, path) {
     if (!row || now - row.created > ttl) throw failure('방을 찾을 수 없습니다. 초대 코드를 확인해 주세요.',404);
     const state = JSON.parse(row.state);
     if (body.action !== 'join' && !playerFor(state, token)) throw failure('초대 코드와 닉네임으로 입장해 주세요.',403);
+    if (state.phase === 3) state.phase = 2;
     while (state.end && state.end <= now) advance(state, state.end);
     try {
       apply(state, token, body);
