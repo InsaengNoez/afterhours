@@ -74,9 +74,12 @@ function inspectionVisual(clue) {
       '<article><b>16:10</b><h3>전시 인수 확인서</h3><p>보관함 A-12</p><strong>B-047</strong></article></div>';
   }
   if (type === '005:01') {
-    return '<div class="vote-film"><div class="film-still"><span aria-hidden="true">▱</span><output>20:11 · 투입 1</output></div>'+
-      '<div class="film-frames" aria-label="영상 프레임">'+['20:11','20:12','20:12','20:13','20:14'].map((time,index)=>
-        '<button class="ghost" type="button" data-inspect-frame="'+(index+1)+'" data-time="'+time+'" aria-pressed="'+(index===0)+'">프레임 '+(index+1)+'</button>').join('')+'</div></div>';
+    return '<div class="vote-film"><figure class="film-camera"><img src="/vote-frame-1.webp" alt="투입 장면 1. 심사위원이 봉투 한 장을 투입구에 넣고 있다.">'+
+      '<span class="live"><i></i> CAM 02</span><figcaption><output aria-live="polite">20:11 · 투입 1</output></figcaption></figure>'+
+      '<p class="muted">연속 촬영 기록 · 20:11–20:14 · 투입 순간 발췌</p>'+
+      '<div class="film-frames" aria-label="투입 장면 선택">'+['20:11','20:12','20:12','20:13','20:14'].map((time,index)=>
+        '<button class="film-frame" type="button" data-inspect-frame="'+(index+1)+'" data-time="'+time+'" aria-pressed="'+(index===0)+'">'+
+        '<img src="/vote-frame-'+(index+1)+'.webp" alt=""><span>'+(index+1)+' · '+time+'</span></button>').join('')+'</div></div>';
   }
   return clue.visual;
 }
@@ -86,7 +89,7 @@ const exhibitPhotos = {
   '002':['002-a','002-b','002-c','002-d','extraA-b','extraA-c','extraA-d'],
   '003':['003-a','003-b','003-c',null,'extraB-a','extraB-b','extraB-c'],
   '004':['004-a','004-b','004-c',null,'extraB-d','extraC-a','004-d'],
-  '005':['005-a','005-b','005-c','extraC-b','005-d','extraC-c','extraC-d'],
+  '005':[null,'005-b','005-c','extraC-b','005-d','extraC-c','extraC-d'],
 };
 
 function contextPhoto(clue) {
@@ -118,7 +121,7 @@ function openInspection(id) {
     '<span class="muted">'+(index+1)+' / '+room.clues.length+'</span>'+
     '<button class="ghost" type="button" data-inspect-move="1"'+(index===room.clues.length-1?' disabled':'')+'>다음 증거 →</button></nav>';
   const exhibit = evidenceInspector.querySelector('.inspect-exhibit');
-  if (exhibit.querySelector('img')) {
+  if (exhibit.querySelector('img') && !exhibit.querySelector('.vote-film')) {
     exhibit.insertAdjacentHTML('afterend','<button class="ghost inspect-reset" type="button" data-inspect-reset>사진 전체 보기</button>');
   }
   if (!evidenceInspector.open) evidenceInspector.showModal();
@@ -189,7 +192,11 @@ evidenceInspector.addEventListener('click',event=>{
   if (button.hasAttribute('data-inspect-part')) inspectPart(Number(button.dataset.inspectPart));
   if (button.hasAttribute('data-inspect-frame')) {
     evidenceInspector.querySelectorAll('[data-inspect-frame]').forEach(frame=>frame.setAttribute('aria-pressed',String(frame===button)));
-    evidenceInspector.querySelector('.film-still output').textContent = button.dataset.time+' · 투입 '+button.dataset.inspectFrame;
+    const frame = button.dataset.inspectFrame;
+    const photo = evidenceInspector.querySelector('.film-camera>img');
+    photo.src = '/vote-frame-'+frame+'.webp';
+    photo.alt = '투입 장면 '+frame+'. 심사위원이 봉투 한 장을 투입구에 넣고 있다.';
+    evidenceInspector.querySelector('.film-camera output').textContent = button.dataset.time+' · 투입 '+frame;
   }
   if (button.hasAttribute('data-inspect-listen')) listenToEvidence().catch(stopInspectionAudio);
   if (button.hasAttribute('data-inspect-move')) {
