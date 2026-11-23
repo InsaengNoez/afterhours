@@ -24,11 +24,11 @@ const heroSlides = caseList.map(({id,title,tag,accent,teaser},index) => {
     (id==='001' ? '<p class="capture"><span></span> CAM 03 &nbsp; / &nbsp; 23:17:00</p>' : '')+'</section>';
 }).join('');
 assets['/'][1] = assets['/'][1].replace('<!-- CASE_HERO -->',
-  '<div class="case-hero" role="region" aria-label="추천 사건" aria-roledescription="슬라이드 배너">'+heroSlides+
+  '<div class="home-stage"><div class="home-agent"><img src="/stage-investigator.webp" alt=""></div><div class="case-hero" role="region" aria-label="추천 사건" aria-roledescription="슬라이드 배너">'+heroSlides+
   '<div class="hero-nav"><button type="button" class="hero-control hero-pause" data-hero-pause aria-label="자동 넘김 일시정지" title="자동 넘김 일시정지">Ⅱ</button>'+
   '<button type="button" class="hero-control hero-arrow hero-prev" data-hero-prev aria-label="이전 사건"></button>'+
   '<button type="button" class="hero-control hero-arrow hero-next" data-hero-next aria-label="다음 사건"></button></div>'+
-  '<span class="visually-hidden" data-hero-status aria-live="polite"></span></div>');
+  '<span class="visually-hidden" data-hero-status aria-live="polite"></span></div></div>');
 const caseCards = Object.values(cases).map(({id,title,tag,teaser,accent}) =>
   '<article class="catalog-card" id="case-'+id+'" style="--theme:'+accent+'">'+
   '<div class="catalog-photo" style="--file-cover:url(/'+(id==='001'?'hero':'cover-'+id)+'.webp)"><span class="number">사건 '+id+'</span></div>'+

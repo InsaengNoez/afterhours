@@ -9,6 +9,8 @@ localStorage.setItem('afterhours-player', token);
 let room, viewKey, mode, updatePending, noticeTimer;
 let drafts = {};
 let pins = new Set();
+let deskView = "";
+let deskPhase = null;
 let chosenCase = "001";
 let resultScene = 0;
 
@@ -399,12 +401,17 @@ function updatePin(id) {
   }
 }
 
-function roomDesk(phase, radio) {
-  const links = [['case-brief','사건 파일'],['case-evidence','증거 보드'],['case-witnesses','진술 기록'],['case-timeline','시간대']];
-  if (radio && phase === 2) links.push(['case-answer','송출 재구성실']);
-  if (phase === 4) links.push(['case-answer','최종 답안']);
-  return '<aside class="desk-index"><nav aria-label="수사 기록 바로가기">'+links.map(([id,label]) =>
-    '<a href="#'+id+'">'+label+'</a>').join('')+'</nav><div class="desk-pins"><h2>고정한 증거</h2><div id="case-pins">'+pinList()+'</div></div></aside>';
+function stageInvestigator() {
+  return '<figure class="stage-investigator"><img src="/stage-investigator.webp" alt="" width="462" height="820" fetchpriority="low"><figcaption>담당 조사관 <strong>차은서</strong></figcaption></figure>';
+}
+
+function stageNav(records) {
+  return '<nav class="stage-nav" aria-label="수사 기록">'+records.map(([id,label])=>
+    '<button type="button" data-action="desk-view" data-id="'+id+'" aria-pressed="'+(deskView===id)+'" aria-controls="stage-'+id+'">'+label+'</button>').join('')+'</nav>';
+}
+
+function recordPage(id, content) {
+  return '<div id="stage-'+id+'" class="stage-page"'+(deskView===id?'':' hidden')+'>'+content+'</div>';
 }
 
 function briefing(caseInfo, dossier, participants) {
@@ -415,7 +422,11 @@ function briefing(caseInfo, dossier, participants) {
 }
 
 function render() {
-  const key = resultScene + ':' + JSON.stringify(room);
+  if (deskPhase !== room.phase) {
+    deskPhase = room.phase;
+    deskView = room.phase === 4 ? 'answer' : room.phase === 2 ? 'evidence' : 'brief';
+  }
+  const key = resultScene + ':' + deskView + ':' + JSON.stringify(room);
   if (key === viewKey) return;
   viewKey = key;
   const {phase, players, clues, suspects, host, solo, voted, caseInfo} = room;
@@ -430,32 +441,40 @@ function render() {
       '<div class="actions"><button class="ghost" data-action="invite">초대 링크 복사</button>'+advance+'</div></section>';
   }
   if (phase >= 1 && phase <= 4) {
-    content += briefing(caseInfo,room.dossier,participants);
-    if (phase >= 2) {
-      content += '<div class="section-title desk-section" id="case-evidence"><h2>증거 보드</h2><span>'+clues.length+'개 확인</span></div>'+
-        '<div class="evidence-grid">'+clues.map(evidenceCard).join('')+'</div>';
-    }
-    if (phase >= 2) {
-      content += '<section class="panel" id="case-timeline"><h2>사건 타임라인</h2><ol class="timeline">'+clues.filter(({shared}) => shared)
-        .sort((a,b) => a.time.localeCompare(b.time)).map((clue) => '<li><time>'+clue.time+'</time>'+clue.title+'</li>').join('')+'</ol></section>';
-    }
-    content += '<div class="section-title desk-section" id="case-witnesses"><h2>용의자 진술</h2></div>'+
+    const records = [['brief','사건 접수']];
+    const brief = briefing(caseInfo,room.dossier,participants);
+    const witnesses = '<div class="stage-record-title"><h2>용의자 진술</h2></div>'+
       '<div class="grid witness-grid">'+suspects.map((suspect,index)=>witnessCard(suspect,caseInfo.portraits[index],room.dossier?.people[index])).join('')+'</div>';
-    if (phase >= 2 && room.radioDesk) content += '<div id="case-answer">'+radioDesk(room)+'</div>';
-    if (phase === 4 && !room.radioDesk) {
-      content += '<section class="panel" id="case-answer"><h2>최종 답안</h2>'+(voted ? '<p role="status">답안을 제출했습니다. 모두 제출하거나 시간이 끝나면 해설이 열립니다.</p>' :
+    let pages = recordPage('brief',brief);
+    if (phase >= 2) {
+      records.push(['evidence','증거 보드'],['witnesses','진술 기록'],['timeline','시간대']);
+      pages += recordPage('evidence','<div class="stage-record-title"><h2>증거 보드</h2><span>'+clues.length+'개 확보</span></div>'+
+        '<div class="evidence-grid">'+clues.map(evidenceCard).join('')+'</div>');
+      pages += recordPage('witnesses',witnesses);
+      pages += recordPage('timeline','<section class="panel stage-timeline"><h2>사건 타임라인</h2><ol class="timeline">'+clues.filter(({shared}) => shared)
+        .sort((a,b) => a.time.localeCompare(b.time)).map((clue) =>
+          '<li><time>'+escape(clue.time)+'</time><button class="pin-link" type="button" data-action="inspect" data-id="'+clue.id+'">'+escape(clue.title)+'</button></li>').join('')+'</ol></section>');
+    }
+    let answer = '';
+    if (phase >= 2 && room.radioDesk) answer = radioDesk(room);
+    else if (phase === 4) {
+      answer = '<section class="panel stage-answer"><h2>최종 답안</h2>'+(voted ? '<p role="status">답안을 제출했습니다. 모두 제출하거나 시간이 끝나면 해설이 열립니다.</p>' :
         '<form id="vote" class="vote"><label>'+caseInfo.labels[0]+'<select required name="suspect">'+options(suspects.map(([name],i)=>[i,name]),'suspect','용의자를 선택하세요')+
         '</select></label><label>'+caseInfo.labels[1]+'<select required name="time">'+options(room.times.map(time=>[time,time]),'time','항목을 선택하세요')+
         '</select></label><label>'+caseInfo.labels[2]+'<select required name="clue">'+options(clues.map(({id,title})=>[id,'증거 '+id+' · '+title]),'clue','증거를 선택하세요')+
         '</select></label>'+answerActions('답안 제출')+'</form>')+'</section>';
-    } else if (phase < 4) {
-      content += '<div class="actions">'+advance+'</div>';
     }
+    if (answer) {
+      records.push(['answer',phase===4?'최종 답안':'송출 재구성실']);
+      pages += recordPage('answer',answer+(phase===4&&!solo?compareDrafts(room):''));
+    }
+    content = '<div class="investigation-stage">'+stageInvestigator()+ '<div class="stage-worktop">'+stageNav(records)+
+      '<div class="stage-documents">'+pages+'</div><div class="stage-foot">'+
+      (phase>=2?'<div class="stage-pins"><h2>고정한 증거</h2><div id="case-pins">'+pinList()+'</div></div>':'')+advance+'</div></div></div>';
   }
-  if (phase === 4 && !solo) content += compareDrafts(room);
-  if (phase >= 2 && phase <= 4) content = '<div class="case-workspace">'+roomDesk(phase,room.radioDesk)+'<div class="desk-content">'+content+'</div></div>';
-  if (phase === 5) content = renderResult(room);
+  if (phase === 5) content = '<div class="result-stage">'+renderResult(room)+'</div>';
   const focused = document.activeElement;
+  const focusedView = focused?.dataset.action === 'desk-view' ? focused.dataset.id : null;
   const focusedField = ['vote','radio-vote'].includes(focused?.form?.id) ? [focused.form.id,focused.name] : null;
   app.innerHTML = '<section class="session case-session" data-case="'+caseInfo.id+'" style="--accent:'+caseInfo.accent+'"><div class="section-title"><p class="eyebrow"><span class="dot"></span> CASE '+caseInfo.id+' <span class="line"></span> '+(solo ? '혼자 체험' : '수사실 '+room.code)+'</p><span id="clock" class="clock" aria-label="남은 시간"></span></div><h1>'+title+'</h1>'+
     '<ol class="phases" aria-label="진행 단계">'+room.stages.map((stage,index)=>stage ? '<li '+(index===phase?'aria-current="step"':'')+'>'+stage+'</li>' : '').join('')+'</ol>'+
@@ -465,6 +484,7 @@ function render() {
     field?.focus();
     if (field?.tagName === 'TEXTAREA') field.setSelectionRange(focused.selectionStart,focused.selectionEnd);
   }
+  if (focusedView) app.querySelector('[data-action="desk-view"][data-id="'+focusedView+'"]')?.focus({preventScroll:true});
   tick();
 }
 
@@ -508,6 +528,7 @@ function enter(state) {
   pins = new Set();
   try { for (const id of JSON.parse(localStorage.getItem('afterhours-pins:'+state.code) ?? '[]')) pins.add(id); } catch {}
   resultScene = 0;
+  deskPhase = null;
   history.replaceState(null,'','/?room='+state.code);
   if (dialog.open) dialog.close();
   render();
@@ -543,6 +564,10 @@ app.addEventListener('click', (event) => {
   if (!button) return;
   const {action,id} = button.dataset;
   if (action === 'create' || action === 'solo') entry(action,'',{id:button.dataset.case || '001',title:button.dataset.title || '23시 17분, 정전'});
+  if (action === 'desk-view' && app.querySelector('#stage-'+id)) {
+    deskView = id;
+    render();
+  }
   if (action === 'next') refresh({action});
   if (action === 'inspect') openInspection(id);
   if (action === 'share') refresh({action,clue:id});
