@@ -252,8 +252,9 @@ function compareDrafts({teamDrafts,radioDesk,caseInfo,suspects}) {
       '초안을 공유하면 팀과 의견을 비교할 수 있어요. 최종 답안은 바로 제출해도 됩니다.')+'</p></section>';
   }
   const labels = radioDesk ? ['송출 전환 시각','수신 지연','재생 소스'] : caseInfo.labels;
+  if (radioDesk?.requiresSuspect) labels.push('범인');
   const format = radioDesk ?
-    [(value)=>value,(value)=>value+'초',(value)=>radioDesk.sources.find(([code])=>code===value)?.[1] ?? value] :
+    [(value)=>value,(value)=>value+'초',(value)=>radioDesk.sources.find(([code])=>code===value)?.[1] ?? value,(value)=>suspects[value][0]] :
     [(value)=>suspects[value][0],(value)=>value,(value)=>'증거 '+value];
   const differences = labels.flatMap((label,index)=>{
     if (new Set(teamDrafts.map(({vote})=>vote[index])).size < 2) return [];
@@ -269,7 +270,7 @@ function compareDrafts({teamDrafts,radioDesk,caseInfo,suspects}) {
       '<p class="muted">공유된 초안의 의견이 같습니다. 준비되면 최종 답안을 제출하세요.</p>')+'</section>';
 }
 
-function radioDesk({radioDesk,phase,voted}) {
+function radioDesk({radioDesk,phase,voted,suspects}) {
   const delay = Number(drafts.delay ?? 0);
   const cut = radioDesk.cuts.indexOf(drafts.cut);
   const disabled = voted ? ' disabled' : '';
@@ -280,7 +281,9 @@ function radioDesk({radioDesk,phase,voted}) {
     '<div class="radio-choices"><label>송출 전환 시각<select name="cut" required'+disabled+'>'+
     options(radioDesk.cuts.map(time=>[time,time]),'cut','갈라진 지점을 선택하세요')+'</select></label>'+
     '<label>재생 소스<select name="source" required'+disabled+'>'+
-    options(radioDesk.sources,'source','재생 소스를 선택하세요')+'</select></label></div>'+
+    options(radioDesk.sources,'source','재생 소스를 선택하세요')+'</select></label>'+
+    (phase === 4 && radioDesk.requiresSuspect ? '<label>범인 지목<select name="suspect" required'+disabled+'>'+
+      options(suspects.map(([name],index)=>[index,name]),'suspect','송출을 바꾼 사람을 선택하세요')+'</select></label>' : '')+'</div>'+
     (voted ? '<p role="status">재구성을 제출했습니다. 모두 제출하거나 시간이 끝나면 해설이 열립니다.</p>' :
       phase === 4 ? answerActions('재구성 제출') :
       '<p class="muted">설정은 지목 단계까지 유지됩니다.</p>')+'</form></section>';
@@ -313,12 +316,12 @@ function renderResult({result, clues, suspects, caseInfo, radioDesk}) {
   const closing = '<div class="actions"><button class="ghost" data-action="result">결과와 도전 링크 복사</button><a class="ghost" href="/">처음으로</a></div>';
 
   if (resultScene === 0) {
-    const headlines = ['사건을 다시 들여다볼 시간','하나의 실마리를 잡았다','진실에 거의 닿았다','모든 단서가 맞아떨어졌다'];
-    const headline = score === null ? '수사 시간이 끝났다' : headlines[score];
+    const headline = score === null ? '수사 시간이 끝났다' : score === answer.length ? '모든 단서가 맞아떨어졌다' :
+      ['사건을 다시 들여다볼 시간','하나의 실마리를 잡았다','진실에 가까워졌다','진실에 거의 닿았다'][score];
     return '<section class="reveal-card result-intro" aria-labelledby="reveal-title"><div class="reveal-content">'+
       '<p class="eyebrow">내 수사 결과</p><h2 id="reveal-title" tabindex="-1">'+headline+'</h2>'+
       (score === null ? '<p class="result-context">답안 미제출</p>' :
-        '<div class="result-score" role="img" aria-label="3개 중 '+score+'개 적중"><strong aria-hidden="true">'+score+'</strong><span aria-hidden="true">/ 3 적중</span></div>')+
+        '<div class="result-score" role="img" aria-label="'+answer.length+'개 중 '+score+'개 적중"><strong aria-hidden="true">'+score+'</strong><span aria-hidden="true">/ '+answer.length+' 적중</span></div>')+
       '<p class="result-context">'+intro+'</p>'+
       '<div class="actions"><button class="primary" data-action="reveal-next">범인 공개 <b aria-hidden="true">→</b></button></div></div></section>';
   }
@@ -338,7 +341,7 @@ function renderResult({result, clues, suspects, caseInfo, radioDesk}) {
   }
 
   const format = radioDesk
-    ? [(value)=>value, (value)=>value+'초', (value)=>radioDesk.sources.find(([code])=>code===value)?.[1] ?? value]
+    ? [(value)=>value, (value)=>value+'초', (value)=>radioDesk.sources.find(([code])=>code===value)?.[1] ?? value,(value)=>suspects[value][0]]
     : [(value)=>suspects[value][0], (value)=>value, (value)=>findClue(value)?.title || '증거 '+value];
   const checks = labels.map((label,index) => {
     const matched = submitted?.[index] === answer[index];
@@ -499,7 +502,7 @@ app.addEventListener('click', (event) => {
     heading.closest('.reveal-card').scrollIntoView({block:'start'});
   }
   if (action === 'result') copy('퇴근 후 추리실 · '+room.caseInfo.title+'\n'+
-    (room.result.score === null ? '사건에 도전해 보세요.' : '3개 중 '+room.result.score+'개 적중!')+'\n'+location.origin+'/#case-'+room.caseInfo.id);
+    (room.result.score === null ? '사건에 도전해 보세요.' : room.result.answer.length+'개 중 '+room.result.score+'개 적중!')+'\n'+location.origin+'/#case-'+room.caseInfo.id);
 });
 app.addEventListener('input',(event)=>{
   const {form,name,value} = event.target;
@@ -526,6 +529,7 @@ app.addEventListener('submit',(event)=>{
   const vote = id === 'radio-vote'
     ? [selected.get('cut'),selected.get('delay'),selected.get('source')]
     : [Number(selected.get('suspect')),selected.get('time'),selected.get('clue')];
+  if (id === 'radio-vote' && room.radioDesk.requiresSuspect) vote.push(Number(selected.get('suspect')));
   const action = event.submitter?.value === 'draft' ? 'draft' : 'vote';
   refresh({action,vote,note:selected.get('note') ?? ''});
 });

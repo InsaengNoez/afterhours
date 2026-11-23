@@ -13,14 +13,15 @@ function safeState(state, player) {
   const item = cases[caseId];
   const {suspects, clues, times, beats, intro, reveal, headline, conclusion} = item;
   const radio = state.radioDesk ? radioReconstruction : null;
-  const answer = radio?.answer ?? item.answer;
+  const answer = radio && state.radioSuspect ? [...radio.answer,item.answer[0]] : radio?.answer ?? item.answer;
+  const labels = radio && state.radioSuspect ? [...radio.labels,'범인'] : radio?.labels ?? item.labels;
   const caseVisual = item.visual;
   const visible = clues.filter((item) => item[5] < 0 || state.public.includes(item[0]) ||
     item[5] % state.players.length === player.slot || state.phase === 5 || state.solo);
   const mine = state.votes[player.id];
   return {
     phase: state.phase, stages: phases, end: state.end, solo: state.solo,
-    caseInfo:publicCase(radio ? {...item,brief:radio.brief} : item), radioDesk:radio?.choices ?? null, host: player.id === state.host, voted: Boolean(mine),
+    caseInfo:publicCase(radio ? {...item,brief:radio.brief} : item), radioDesk:radio ? {...radio.choices,requiresSuspect:Boolean(state.radioSuspect)} : null, host: player.id === state.host, voted: Boolean(mine),
     players: state.players.map(({ name, id }) => ({name, voted:Boolean(state.votes[id])})),
     teamDrafts: state.phase === 4 && !state.solo ? state.players.flatMap(({id,name}) =>
       state.drafts?.[id] ? [{name, ...state.drafts[id], own:id===player.id}] : []) : [],
@@ -32,7 +33,7 @@ function safeState(state, player) {
         shared: item[5] < 0 || state.public.includes(id) || state.phase === 5 || state.solo};
     }) : [],
     result: state.phase === 5 ? {
-      answer, culprit:item.answer[0], lead:radio?.lead ?? item.answer[2], labels:radio?.labels ?? item.labels, reconstruction:beats, intro, reveal, headline, conclusion, ending:endings[item.id], scene:finalScenes[item.id], submitted:mine ?? null, score: mine ? answer.filter((part, index) => mine[index] === part).length : null
+      answer, culprit:item.answer[0], lead:radio?.lead ?? item.answer[2], labels, reconstruction:beats, intro, reveal, headline, conclusion, ending:endings[item.id], scene:finalScenes[item.id], submitted:mine ?? null, score: mine ? answer.filter((part, index) => mine[index] === part).length : null
     } : null
   };
 }
@@ -68,12 +69,15 @@ function apply(state, token, body) {
   } else if (body.action === 'vote' || body.action === 'draft') {
     if (state.phase !== 4 || state.votes[token]) throw failure('현재 답안을 제출할 수 없습니다.', 409);
     const {vote} = body;
-    if (!Array.isArray(vote) || vote.length !== 3) throw failure('세 항목을 모두 선택해 주세요.');
+    if (!Array.isArray(vote) || vote.length !== (state.radioDesk && state.radioSuspect ? 4 : 3)) throw failure('모든 항목을 선택해 주세요.');
     if (state.radioDesk) {
       const {cuts,sources} = radioReconstruction.choices;
       if (typeof vote[1] !== 'string' || !cuts.includes(vote[0]) ||
           !/^(?:[0-9]|1[0-2])$/.test(vote[1]) || !sources.some(([code])=>code===vote[2])) {
         throw failure('전환 시각, 수신 지연, 재생 소스를 확인해 주세요.');
+      }
+      if (state.radioSuspect && (!Number.isInteger(vote[3]) || !suspects[vote[3]])) {
+        throw failure('범인을 선택해 주세요.');
       }
     } else if (!Number.isInteger(vote[0]) || !suspects[vote[0]] || !times.includes(vote[1]) ||
         !safeState(state, player).clues.some(({id}) => id === vote[2])) {
@@ -109,7 +113,7 @@ async function api(request, env, path) {
     if (typeof caseId !== 'string' || !Object.hasOwn(cases,caseId)) throw failure('사건을 다시 선택해 주세요.');
     const now = Date.now();
     const solo = body.solo === true;
-    const state = {caseId,radioDesk:caseId==='002',phase:solo ? 1 : 0, end:solo ? now + 120000 : null, solo, host:token,
+    const state = {caseId,radioDesk:caseId==='002',radioSuspect:caseId==='002',phase:solo ? 1 : 0, end:solo ? now + 120000 : null, solo, host:token,
       players:[{id:token, name:validName(body.name), slot:0}], public:[], votes:{}};
     await env.DB.prepare('DELETE FROM rooms WHERE created < ?').bind(now - ttl).run();
     for (let attempt = 0; attempt < 5; attempt++) {
@@ -129,6 +133,10 @@ async function api(request, env, path) {
     if (!row || now - row.created > ttl) throw failure('방을 찾을 수 없습니다. 초대 코드를 확인해 주세요.',404);
     const state = JSON.parse(row.state);
     if (body.action !== 'join' && !playerFor(state, token)) throw failure('초대 코드와 닉네임으로 입장해 주세요.',403);
+    if (state.radioDesk && !state.radioSuspect && state.phase < 5 && !Object.keys(state.votes).length) {
+      state.radioSuspect = true;
+      delete state.drafts;
+    }
     if (state.phase === 3) state.phase = 2;
     while (state.end && state.end <= now) advance(state, state.end);
     try {

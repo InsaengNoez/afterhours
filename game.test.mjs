@@ -78,7 +78,7 @@ test('solo sees all evidence and server opens the reveal after the deadline',asy
 
 test('all new cases remain tied to their rooms and expose their own evidence and verdict', async () => {
   const expected = [
-    ['002','윤해원',['22:00:00','8','R-17'],'waveform'],
+    ['002','윤해원',['22:00:00','8','R-17',2],'waveform'],
     ['003','박선우',[2,'15:05','04'],'evidence-003.webp'],
     ['004','채린',[1,'분장대 앞','04'],'evidence-004.webp'],
     ['005','권나경',[1,'개표함 받침을 맞출 때','04'],'ballot-diagram']
@@ -101,12 +101,17 @@ test('all new cases remain tied to their rooms and expose their own evidence and
     assert.equal(evidence.shared,true);
     assert.equal((await request(path,host,{action:'next'})).body.phase,4);
     if (caseId === '002') {
+      assert.equal(created.radioDesk.requiresSuspect,true);
+      assert.equal((await request(path,host,{action:'vote',vote:answer.slice(0,3)})).status,400);
+      assert.equal((await request(path,host,{action:'vote',vote:[...answer.slice(0,3),9]})).status,400);
+      const draft = await request(path,host,{action:'draft',vote:[...answer.slice(0,3),0]});
+      assert.equal(draft.body.teamDrafts[0].vote[3],0);
       assert.equal((await request(path,host,{action:'vote',vote:[2,'리허설 파일','04']})).status,400);
-      assert.equal((await request(path,host,{action:'vote',vote:['22:00:00','13','R-17']})).status,400);
+      assert.equal((await request(path,host,{action:'vote',vote:['22:00:00','13','R-17',2]})).status,400);
     }
     assert.equal((await request(path,host,{action:'vote',vote:answer})).body.result,null);
     const {body:finished} = await request(path,friend,{action:'vote',vote:answer});
-    assert.equal(finished.result.score,3);
+    assert.equal(finished.result.score,answer.length);
     assert.ok(finished.result.reconstruction.length>=4);
     assert.equal(finished.clues.length,7);
     assert.ok(finished.clues.every(clue=>clue.inspection.length===2 && clue.inspection.every(spot=>spot.every(Boolean))));
