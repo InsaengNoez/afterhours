@@ -160,3 +160,24 @@ dialog{width:min(440px,calc(100% - 32px));padding:24px;background:var(--panel);b
 .team-compare h3{margin:10px 0 7px;font-size:15px}.draft-differences,.draft-differences ul,.draft-notes{list-style:none;padding:0;margin:0}
 .draft-differences>li{padding:7px 0 12px;border-bottom:1px solid #34434e}
 .draft-differences ul li,.draft-notes li{display:flex;flex-wrap:wrap;gap:5px 12px;padding:4px 0;color:#c4d3db;font-size:14px}.draft-differences strong,.draft-notes strong{color:var(--accent)}.draft-notes span{overflow-wrap:anywhere}
+
+/* Photographic evidence board */
+.case-session .evidence-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.case-session .evidence-card{padding:0;gap:0;overflow:hidden;background:#111c25;min-width:0}
+.evidence-card .record-heading{padding:11px 13px}
+.evidence-card .evidence-title{padding:0 13px;flex-wrap:wrap;gap:4px 12px;margin:12px 0 2px}
+.evidence-card .evidence-title h3{font-size:18px}
+.evidence-card .evidence-actions{padding:2px 13px 13px}
+.evidence-card .evidence-preview{position:relative;aspect-ratio:1.64;max-height:none;mask-image:none;width:100%;background:#09141e}
+.evidence-card .evidence-preview .exhibit,.evidence-card .photo-pair,.evidence-card .evidence-composite{margin:0;border:0;border-radius:0;height:100%;min-height:0}
+.evidence-card .evidence-preview img{display:block;width:100%;height:100%;object-fit:cover}
+.evidence-card .photo-pair>div{height:100%}.evidence-card .photo-pair figcaption,.evidence-card .comparison figcaption{display:none}
+.evidence-card .evidence-preview .comparison>a{display:block;height:100%}
+.context-photo{position:relative;overflow:hidden;margin:0;isolation:isolate;background:#0a131d}
+.context-photo img{display:block;width:100%;height:auto;object-fit:cover;filter:saturate(.82)}
+.context-photo figcaption{position:absolute;right:0;bottom:0;padding:5px 8px;background:#09131ce8;color:#e1e8ed;font-size:10px}
+.evidence-preview .context-photo{height:100%}
+#evidence-inspector>.context-photo{border-radius:7px;margin:0 0 12px}
+#evidence-inspector>.context-photo img{height:clamp(135px,24vw,230px);object-fit:cover}
+@media(max-width:890px){.case-session .evidence-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.case-session .evidence-grid{grid-template-columns:1fr}}

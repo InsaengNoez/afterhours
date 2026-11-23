@@ -81,8 +81,22 @@ function inspectionVisual(clue) {
   return clue.visual;
 }
 
+const exhibitPhotos = {
+  '001':['001-a','001-b','001-c',null,null,'001-d','extraA-a'],
+  '002':['002-a','002-b','002-c','002-d','extraA-b','extraA-c','extraA-d'],
+  '003':['003-a','003-b','003-c',null,'extraB-a','extraB-b','extraB-c'],
+  '004':['004-a','004-b','004-c',null,'extraB-d','extraC-a','004-d'],
+  '005':['005-a','005-b','005-c','extraC-b','005-d','extraC-c','extraC-d'],
+};
+
+function contextPhoto(clue) {
+  const file = exhibitPhotos[room.caseInfo.id]?.[Number(clue.id)-1];
+  if (!file) return '';
+  return '<figure class="context-photo"><img loading="lazy" src="/board-'+file+'.webp" width="620" height="413" alt=""><figcaption>현장 재현 이미지</figcaption></figure>';
+}
+
 function scanPreview(clue) {
-  return '<div class="evidence-preview" inert aria-hidden="true">'+clue.visual+'</div>';
+  return '<div class="evidence-preview" aria-hidden="true" inert>'+(contextPhoto(clue) || clue.visual)+'</div>';
 }
 
 function openInspection(id) {
@@ -94,6 +108,7 @@ function openInspection(id) {
   const [key,title,source] = [clue.id,clue.title,clue.source].map(escape);
   evidenceInspector.innerHTML = '<header class="inspect-heading"><div><p class="eyebrow">증거 '+key+' · '+source+'</p>'+
     '<h2 id="inspect-title" tabindex="-1">'+title+'</h2></div><button class="ghost" type="button" data-inspect-close aria-label="증거 닫기">×</button></header>'+
+    contextPhoto(clue)+
     '<div class="inspect-exhibit" data-case="'+room.caseInfo.id+'" data-clue="'+key+'">'+inspectionVisual(clue)+'</div>'+
     '<div class="inspect-spots" aria-label="확인할 부분">'+clue.inspection.map(([label],part)=>
       '<button class="ghost" type="button" data-inspect-part="'+part+'" aria-pressed="false">'+escape(label)+'</button>').join('')+'</div>'+
@@ -192,7 +207,7 @@ evidenceInspector.addEventListener('close',()=>{
 
 function evidenceCard(clue) {
   return '<article class="card evidence-card"><div class="record-heading"><span class="number">증거 '+clue.id+'</span><span class="clue-visibility'+(clue.shared ? '' : ' private')+'">'+(clue.shared ? '공용' : '개인')+'</span></div>'+
-    '<div class="evidence-title"><h3>'+clue.title+'</h3><span>'+clue.source+'</span></div>'+scanPreview(clue)+
+    scanPreview(clue)+'<div class="evidence-title"><h3>'+clue.title+'</h3><span>'+clue.source+'</span></div>'+
     '<div class="evidence-actions"><button type="button" class="primary" data-action="inspect" data-id="'+clue.id+'">'+
     (inspectedAll(clue.id) ? '다시 살펴보기 ✓' : '증거 살펴보기')+'</button>'+
     (clue.shared ? '' : '<button type="button" class="ghost" data-action="share" data-id="'+clue.id+'">팀에 공개</button>')+'</div></article>';
