@@ -103,8 +103,19 @@ function radioDesk({radioDesk,phase,voted}) {
 }
 
 
+function renderEnding(ending) {
+  const {turn, turnBody, behind, behindBody, speaker, quote, after} = ending;
+  return '<section class="panel case-ending" aria-labelledby="ending-turn">'+
+    '<div class="ending-turn"><p class="eyebrow">결정적 순간</p><h2 id="ending-turn">'+escape(turn)+'</h2><p>'+escape(turnBody)+'</p></div>'+
+    '<details class="ending-file"><summary><span><span class="eyebrow">비하인드</span>'+
+    '<span class="ending-label">'+escape(behind)+'</span></span><span class="ending-plus" aria-hidden="true"></span></summary>'+
+    '<div class="ending-content"><p>'+escape(behindBody)+'</p>'+
+    '<figure class="ending-quote"><blockquote>“'+escape(quote)+'”</blockquote><figcaption>'+escape(speaker)+'</figcaption></figure>'+
+    '<div class="ending-after"><h3>그날 이후</h3><p>'+escape(after)+'</p></div></div></details></section>';
+}
+
 function renderResult({result, clues, suspects, caseInfo, radioDesk}) {
-  const {answer, score, submitted, reconstruction, intro, reveal, headline:caseHeadline, conclusion, culprit, lead:leadId, labels} = result;
+  const {answer, score, submitted, reconstruction, intro, reveal, headline:caseHeadline, conclusion, ending, culprit, lead:leadId, labels} = result;
   const [name,job] = suspects[culprit];
   const findClue = (id) => clues.find(clue => clue.id === id);
   const lead = findClue(leadId);
@@ -142,6 +153,7 @@ function renderResult({result, clues, suspects, caseInfo, radioDesk}) {
   return '<section class="reveal-card case-closed" aria-labelledby="reveal-title"><div class="reveal-content">'+
     '<p class="eyebrow">사건의 전말</p><h2 id="reveal-title" tabindex="-1">'+caseHeadline+'</h2>'+
     '<p class="result-context">'+conclusion+'</p></div></section>'+
+    (ending ? renderEnding(ending) : '')+
     '<div class="debrief-grid"><section class="panel debrief-panel"><h2>결정적 증거</h2><h3>'+lead.title+'</h3>'+lead.visual+
       '<p class="muted">'+lead.record+'</p></section>'+
       '<section class="panel debrief-panel"><h2>내 답안 대조</h2><ul class="answer-checks">'+checks+'</ul></section></div>'+
