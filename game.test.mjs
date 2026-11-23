@@ -24,7 +24,9 @@ test('two investigators join, share evidence, reconnect and submit separate vote
   assert.equal((await request(path,friend)).body.players.length,2);
   assert.equal((await request(path,friend,{action:'next'})).status,409);
   assert.equal((await request(path,host,{action:'next'})).body.phase,1);
-  assert.equal((await request(path,host,{action:'next'})).body.phase,2);
+  const investigation = (await request(path,host,{action:'next'})).body;
+  assert.equal(investigation.phase,2);
+  assert.ok(investigation.clues.every(clue=>clue.inspection.length===2));
   assert.equal((await request(path,friend)).body.clues.some(({id})=>id==='04'),false);
   assert.equal((await request(path,friend,{action:'share',clue:'04'})).status,400);
   assert.equal((await request(path,host,{action:'share',clue:'04'})).status,200);
@@ -99,6 +101,7 @@ test('all new cases remain tied to their rooms and expose their own evidence and
     assert.equal(finished.result.score,3);
     assert.ok(finished.result.reconstruction.length>=4);
     assert.equal(finished.clues.length,7);
+    assert.ok(finished.clues.every(clue=>clue.inspection.length===2 && clue.inspection.every(spot=>spot.every(Boolean))));
   }
   const unknown = await request(api,crypto.randomUUID(),{name:'수사관',caseId:'__proto__'});
   assert.equal(unknown.status,400);

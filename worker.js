@@ -1,5 +1,5 @@
 import { phases, durations } from './case.js';
-import { cases, publicCase, radioReconstruction, renderExhibit, endings } from './cases.js';
+import { cases, publicCase, radioReconstruction, renderExhibit, endings, inspectionNotes } from './cases.js';
 import assets from './assets.js';
 
 const ttl = 24 * 60 * 60 * 1000;
@@ -9,7 +9,8 @@ const respond = (body, status = 200) => Response.json(body, {
 });
 
 function safeState(state, player) {
-  const item = cases[state.caseId ?? '001'];
+  const caseId = state.caseId ?? '001';
+  const item = cases[caseId];
   const {suspects, clues, times, beats, intro, reveal, headline, conclusion} = item;
   const radio = state.radioDesk ? radioReconstruction : null;
   const answer = radio?.answer ?? item.answer;
@@ -25,7 +26,7 @@ function safeState(state, player) {
       const [id,originalTitle,originalSource,originalRecord,time] = item;
       const replacement = radio?.clues[id];
       const [title,source,record] = replacement ?? [originalTitle,originalSource,originalRecord];
-      return {id,title,source,record,time,visual:replacement ? renderExhibit(replacement[5]) : caseVisual(id),
+      return {id,title,source,record,time,inspection:inspectionNotes[caseId][Number(id)-1],visual:replacement ? renderExhibit(replacement[5]) : caseVisual(id),
         shared: item[5] < 0 || state.public.includes(id) || state.phase === 5 || state.solo};
     }) : [],
     result: state.phase === 5 ? {

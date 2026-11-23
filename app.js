@@ -54,11 +54,148 @@ function options(items, key, placeholder) {
     '<option value="'+escape(value)+'" '+(String(drafts[key]) === String(value) ? 'selected' : '')+'>'+escape(label)+'</option>').join('');
 }
 
+const evidenceInspector = document.querySelector('#evidence-inspector');
+const inspected = new Map();
+let inspecting = null;
+let inspectionAudio;
+
+function inspectionKey(id) {
+  return room.code+':'+id;
+}
+
+function inspectedAll(id) {
+  return inspected.get(inspectionKey(id))?.size === 2;
+}
+
+function inspectionVisual(clue) {
+  const type = room.caseInfo.id+':'+clue.id;
+  if (type === '003:01') {
+    return '<div class="seal-pair"><article><b>09:00</b><h3>오전 보관 확인서</h3><p>보관함 A-12</p><strong>B-041</strong></article>'+
+      '<article><b>16:10</b><h3>전시 인수 확인서</h3><p>보관함 A-12</p><strong>B-047</strong></article></div>';
+  }
+  if (type === '005:01') {
+    return '<div class="vote-film"><div class="film-still"><span aria-hidden="true">▱</span><output>20:11 · 투입 1</output></div>'+
+      '<div class="film-frames" aria-label="영상 프레임">'+['20:11','20:12','20:12','20:13','20:14'].map((time,index)=>
+        '<button class="ghost" type="button" data-inspect-frame="'+(index+1)+'" data-time="'+time+'" aria-pressed="'+(index===0)+'">프레임 '+(index+1)+'</button>').join('')+'</div></div>';
+  }
+  return clue.visual;
+}
+
+function scanPreview(clue) {
+  return '<div class="evidence-preview" inert aria-hidden="true">'+clue.visual+'</div>';
+}
+
+function openInspection(id) {
+  const clue = room?.clues.find(item=>item.id===id);
+  if (!clue) return;
+  stopInspectionAudio();
+  inspecting = id;
+  const index = room.clues.indexOf(clue);
+  const [key,title,source] = [clue.id,clue.title,clue.source].map(escape);
+  evidenceInspector.innerHTML = '<header class="inspect-heading"><div><p class="eyebrow">증거 '+key+' · '+source+'</p>'+
+    '<h2 id="inspect-title" tabindex="-1">'+title+'</h2></div><button class="ghost" type="button" data-inspect-close aria-label="증거 닫기">×</button></header>'+
+    '<div class="inspect-exhibit" data-case="'+room.caseInfo.id+'" data-clue="'+key+'">'+inspectionVisual(clue)+'</div>'+
+    '<div class="inspect-spots" aria-label="확인할 부분">'+clue.inspection.map(([label],part)=>
+      '<button class="ghost" type="button" data-inspect-part="'+part+'" aria-pressed="false">'+escape(label)+'</button>').join('')+'</div>'+
+    '<p class="inspect-observation" role="status">위의 항목을 골라 증거의 세부 내용을 확인하세요.</p>'+
+    '<details class="inspect-original"><summary>증거 설명 펼치기</summary><p>'+escape(clue.record)+'</p></details>'+
+    '<nav class="inspect-navigation" aria-label="다른 증거 보기"><button class="ghost" type="button" data-inspect-move="-1"'+(index===0?' disabled':'')+'>← 이전 증거</button>'+
+    '<span class="muted">'+(index+1)+' / '+room.clues.length+'</span>'+
+    '<button class="ghost" type="button" data-inspect-move="1"'+(index===room.clues.length-1?' disabled':'')+'>다음 증거 →</button></nav>';
+  const exhibit = evidenceInspector.querySelector('.inspect-exhibit');
+  if (exhibit.querySelector('img')) {
+    exhibit.insertAdjacentHTML('afterend','<button class="ghost inspect-reset" type="button" data-inspect-reset>사진 전체 보기</button>');
+  }
+  if (!evidenceInspector.open) evidenceInspector.showModal();
+  evidenceInspector.scrollTop = 0;
+  evidenceInspector.querySelector('#inspect-title').focus();
+}
+
+function inspectPart(part) {
+  const clue = room.clues.find(item=>item.id===inspecting);
+  const selected = clue?.inspection[part];
+  if (!selected) return;
+  stopInspectionAudio();
+  const key = inspectionKey(clue.id);
+  const checked = inspected.get(key) ?? new Set();
+  checked.add(part);
+  inspected.set(key,checked);
+  evidenceInspector.querySelector('.inspect-exhibit').dataset.part = part;
+  evidenceInspector.querySelectorAll('[data-inspect-part]').forEach((button,index)=>
+    button.setAttribute('aria-pressed',String(index===part)));
+  const observation = evidenceInspector.querySelector('.inspect-observation');
+  observation.textContent = selected[1];
+  if (room.caseInfo.id==='002' && clue.id==='04') {
+    const listen = document.createElement('button');
+    listen.type = 'button';
+    listen.className = 'ghost listen-clue';
+    listen.dataset.inspectListen = '';
+    listen.textContent = '타격음 재현 듣기';
+    observation.append(listen);
+  }
+  const cardButton = app.querySelector('[data-action="inspect"][data-id="'+clue.id+'"]');
+  if (checked.size===2 && cardButton) cardButton.textContent = '다시 살펴보기 ✓';
+}
+
+function stopInspectionAudio() {
+  if (!inspectionAudio) return;
+  inspectionAudio.close().catch(()=>{});
+  inspectionAudio = null;
+}
+
+async function listenToEvidence() {
+  stopInspectionAudio();
+  if (!window.AudioContext) return;
+  const context = new AudioContext();
+  inspectionAudio = context;
+  await context.resume();
+  if (inspectionAudio !== context) return;
+  [0.04,0.48].forEach((offset,index)=>{
+    const tone = context.createOscillator();
+    const volume = context.createGain();
+    const start = context.currentTime+offset;
+    tone.type = 'triangle';
+    tone.frequency.setValueAtTime(index===0?150:115,start);
+    volume.gain.setValueAtTime(0.001,start);
+    volume.gain.exponentialRampToValueAtTime(0.18,start+0.009);
+    volume.gain.exponentialRampToValueAtTime(0.001,start+0.12);
+    tone.connect(volume).connect(context.destination);
+    tone.start(start);
+    tone.stop(start+0.13);
+    if (index===1) tone.onended = ()=>{ if (inspectionAudio===context) stopInspectionAudio(); };
+  });
+}
+
+evidenceInspector.addEventListener('click',event=>{
+  const button = event.target.closest('button');
+  if (!button) return;
+  if (button.hasAttribute('data-inspect-close')) evidenceInspector.close();
+  if (button.hasAttribute('data-inspect-reset')) delete evidenceInspector.querySelector('.inspect-exhibit').dataset.part;
+  if (button.hasAttribute('data-inspect-part')) inspectPart(Number(button.dataset.inspectPart));
+  if (button.hasAttribute('data-inspect-frame')) {
+    evidenceInspector.querySelectorAll('[data-inspect-frame]').forEach(frame=>frame.setAttribute('aria-pressed',String(frame===button)));
+    evidenceInspector.querySelector('.film-still output').textContent = button.dataset.time+' · 투입 '+button.dataset.inspectFrame;
+  }
+  if (button.hasAttribute('data-inspect-listen')) listenToEvidence().catch(stopInspectionAudio);
+  if (button.hasAttribute('data-inspect-move')) {
+    const index = room.clues.findIndex(item=>item.id===inspecting);
+    const next = room.clues[index+Number(button.dataset.inspectMove)];
+    if (next) openInspection(next.id);
+  }
+});
+evidenceInspector.addEventListener('close',()=>{
+  stopInspectionAudio();
+  app.querySelector('[data-action="inspect"][data-id="'+inspecting+'"]')?.focus();
+  inspecting = null;
+});
+
+
 function evidenceCard(clue) {
   return '<article class="card evidence-card"><div class="record-heading"><span class="number">증거 '+clue.id+'</span><span class="clue-visibility'+(clue.shared ? '' : ' private')+'">'+(clue.shared ? '공용' : '개인')+'</span></div>'+
-    '<div class="evidence-title"><h3>'+clue.title+'</h3><span>'+clue.source+'</span></div>'+clue.visual+
-    '<p class="evidence-transcript">'+clue.record+'</p>'+
-    (clue.shared ? '' : '<button class="ghost" data-action="share" data-id="'+clue.id+'">팀에 공개</button>')+'</article>';
+    '<div class="evidence-title"><h3>'+clue.title+'</h3><span>'+clue.source+'</span></div>'+scanPreview(clue)+
+    '<div class="evidence-actions"><button type="button" class="primary" data-action="inspect" data-id="'+clue.id+'">'+
+    (inspectedAll(clue.id) ? '다시 살펴보기 ✓' : '증거 살펴보기')+'</button>'+
+    (clue.shared ? '' : '<button type="button" class="ghost" data-action="share" data-id="'+clue.id+'">팀에 공개</button>')+'</div></article>';
 }
 
 function witnessCard([name,job,statement], portrait) {
@@ -285,6 +422,7 @@ app.addEventListener('click', (event) => {
   const {action,id} = button.dataset;
   if (action === 'create' || action === 'solo') entry(action,'',{id:button.dataset.case || '001',title:button.dataset.title || '23시 17분, 정전'});
   if (action === 'next') refresh({action});
+  if (action === 'inspect') openInspection(id);
   if (action === 'share') refresh({action,clue:id});
   if (action === 'invite') copy(new URL('/?room='+room.code,location.origin).href);
   if (action === 'reveal-next' && room.phase === 5 && resultScene < 2) {
