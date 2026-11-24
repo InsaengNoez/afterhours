@@ -309,3 +309,7 @@ body:has(.home-stage){overflow-x:clip}
 @media(max-width:480px){.stage-page .evidence-grid,.stage-page .witness-grid{grid-template-columns:1fr}.stage-page .evidence-card,.stage-page .evidence-card:nth-child(n),.stage-page .witness:nth-child(2){transform:none}.stage-foot>.primary{width:100%}.stage-pins{flex-basis:100%}}
 
 .clock,.timeline time,.scene-stamp,.signal-scale,.film-frame span,.code,.capture{font-variant-numeric:tabular-nums}
+.catalog-join{border:0;background:transparent;color:#d9d3c3;font:inherit;font-size:13px;padding:6px 0;cursor:pointer;text-underline-offset:4px}
+.catalog-join:hover{text-decoration:underline;color:#ffedc5}
+.catalog .catalog-card .actions .folder-play{color:#f5ede0;background:#2a3e43;border-radius:3px;padding:5px 7px}
+.catalog .catalog-card .actions .folder-play:hover{color:#fff7e4;background:#3a5359;text-decoration:none}
